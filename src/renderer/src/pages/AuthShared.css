@@ -1,0 +1,254 @@
+:root {
+  --app-bg: #09090b;
+  /* Very dark background */
+  --card-bg: rgba(30, 30, 40, 0.4);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  /* Dark glass input */
+  --primary-color: #3b82f6;
+  /* Blue for Google button or accents */
+  --text-color: #ffffff;
+  --text-muted: #a1a1aa;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--app-bg);
+  color: var(--text-color);
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100vw;
+  background:
+    radial-gradient(circle at 50% -20%, #1e1e2f 0%, transparent 50%),
+    radial-gradient(circle at 100% 50%, #000000 0%, transparent 50%),
+    linear-gradient(to bottom, #050505, #0a0a0a);
+  /* Optional grid effect overlay */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  position: relative;
+}
+
+/* Subtle glow blob behind the card */
+.login-container::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  top: 30%;
+  left: 40%;
+  filter: blur(40px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  background: rgba(20, 20, 25, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.brand-header {
+  margin-bottom: 24px;
+}
+
+/* .brand-logo removed, using img */
+
+.brand-logo-img {
+  height: 24px;
+  /* Slightly larger than raw 18px for better presence, or keep 18px */
+  width: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+
+.login-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+  background-color: #3b5998;
+  /* Or the specific blue from image */
+  background: linear-gradient(135deg, #374abd 0%, #2b3a8c 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.google-btn:hover {
+  opacity: 0.9;
+}
+
+.icon-wrapper {
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.divider {
+  margin: 24px 0;
+  position: relative;
+  height: 1px;
+  /*   background: rgba(255, 255, 255, 0.1); */
+}
+
+/* Visual separator handled by space mostly in modern designs, mostly just margin */
+
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.email-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--input-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+  /* Critical for padding */
+}
+
+.email-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.continue-btn {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.continue-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.error-msg {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+/* OTP Specific Styles */
+.otp-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 30px 0;
+}
+
+.otp-input {
+  width: 45px;
+  height: 55px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  /* Slightly darker for input slots */
+  border-radius: 8px;
+  color: white;
+  font-size: 20px;
+  text-align: center;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.otp-input:focus {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+.resend-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  margin-top: 10px;
+}
+
+.resend-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1e2f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.toast.visible {
+  opacity: 1;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
