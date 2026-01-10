@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
     X, Folder, File, Info, CheckCircle, Layers, Paperclip,
-    CloudDownload, Trash2, GitBranch, RotateCcw, Plus, CheckSquare, Image as ImageIcon
+    Download, Trash2, GitBranch, RotateCcw, Plus, CheckSquare, Image as ImageIcon
 } from 'lucide-react';
 import { FileEntry } from './FileItem';
 import './InspectorPanel.css';
@@ -170,17 +170,34 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             // @ts-ignore
             window.api.draft.getHistory(projectRoot).then((fullHistory: any[]) => {
                 const relPath = getRelativePath();
-                if (!relPath) return;
+
+                if (!relPath) {
+                    setHistory([]);
+                    return;
+                }
 
                 const filtered = fullHistory.filter(ver => {
-                    if (ver.files[relPath]) return true;
-                    // Normalized match
-                    const normPath = relPath.replace(/\\/g, '/');
-                    const hasKey = Object.keys(ver.files).some(k => k.replace(/\\/g, '/') === normPath);
-                    return hasKey;
+                    const normRelPath = relPath.replace(/\\/g, '/');
+
+                    if (file.isDirectory) {
+                        // For folders, checking if ANY file in the version is inside this folder
+                        return Object.keys(ver.files).some(k => {
+                            const normKey = k.replace(/\\/g, '/');
+                            return normKey === normRelPath || normKey.startsWith(normRelPath + '/');
+                        });
+                    } else {
+                        // For files, check exact match
+                        if (ver.files[relPath]) return true;
+                        const versionFileKeys = Object.keys(ver.files).map(k => k.replace(/\\/g, '/'));
+                        return versionFileKeys.includes(normRelPath);
+                    }
                 });
+
                 setHistory(filtered);
             });
+        } else {
+            // Clear history if no file is selected or not on versions tab
+            setHistory([]);
         }
     }, [activeTab, projectRoot, file, getRelativePath]);
 
@@ -201,17 +218,51 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     };
 
     const handleCreateVersion = async () => {
-        if (!versionLabel || !projectRoot) return;
+        if (!versionLabel || !projectRoot || !file) return;
         setLoading(true);
         try {
-            const files = await recursiveScan(projectRoot);
+            let filesToVersion: string[] = [];
+
+            // If it's a directory, scan it recursively
+            if (file.isDirectory) {
+                filesToVersion = await recursiveScan(file.path);
+            } else {
+                // If it's a file, just version this file
+                filesToVersion = [file.path];
+            }
+
+            console.log('📦 Creating version for:', filesToVersion);
+
             // @ts-ignore
-            await window.api.draft.commit(projectRoot, versionLabel, files);
+            await window.api.draft.commit(projectRoot, versionLabel, filesToVersion);
             setVersionLabel('');
             setIsCreating(false);
+
+            // Refresh the history
             // @ts-ignore
-            const newHistory = await window.api.draft.getHistory(projectRoot);
-            setHistory(newHistory);
+            const fullHistory = await window.api.draft.getHistory(projectRoot);
+
+            // Filter to only show versions for the current file
+            const relPath = getRelativePath();
+            if (relPath) {
+                const filtered = fullHistory.filter(ver => {
+                    const normRelPath = relPath.replace(/\\/g, '/');
+
+                    if (file.isDirectory) {
+                        return Object.keys(ver.files).some(k => {
+                            const normKey = k.replace(/\\/g, '/');
+                            return normKey === normRelPath || normKey.startsWith(normRelPath + '/');
+                        });
+                    } else {
+                        if (ver.files[relPath]) return true;
+                        const versionFileKeys = Object.keys(ver.files).map(k => k.replace(/\\/g, '/'));
+                        return versionFileKeys.includes(normRelPath);
+                    }
+                });
+                setHistory(filtered);
+            } else {
+                setHistory([]);
+            }
         } catch (e) {
             console.error(e);
         }
@@ -234,7 +285,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
         });
     };
 
-    const handleDownload = async (ver: any) => {
+    const handleDownload = async (ver: any, customVerNum: number) => {
         if (!file || !projectRoot) return;
         const relativePath = getRelativePath();
         if (!relativePath) return;
@@ -247,8 +298,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             nameWithoutExt = parts.join('.');
         }
 
-        const verNum = ver.versionNumber || '1';
-        const newFileName = `${nameWithoutExt}-v${verNum}${ext}`;
+        const newFileName = `${nameWithoutExt}-v${customVerNum}${ext}`;
         const parentDir = file.path.substring(0, file.path.lastIndexOf(file.name));
         const destPath = parentDir + newFileName;
 
@@ -290,8 +340,73 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                 // @ts-ignore
                 await window.api.draft.delete(projectRoot, vId);
                 // @ts-ignore
-                const newHistory = await window.api.draft.getHistory(projectRoot);
-                setHistory(newHistory);
+                const fullHistory = await window.api.draft.getHistory(projectRoot);
+
+                // Filter to only show versions for the current file
+                const relPath = getRelativePath();
+                if (relPath) {
+                    const filtered = fullHistory.filter(ver => {
+                        if (ver.files[relPath]) return true;
+                        // Normalized match (handle Windows/Unix path differences)
+                        const normPath = relPath.replace(/\\/g, '/');
+                        const versionFileKeys = Object.keys(ver.files).map(k => k.replace(/\\/g, '/'));
+                        return versionFileKeys.includes(normPath);
+                    });
+                    setHistory(filtered);
+                } else {
+                    setHistory([]);
+                }
+                setConfirmState(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    };
+
+    const handleDeleteAllOtherVersions = async () => {
+        if (history.length <= 1) {
+            alert('There is only one version or no versions to delete.');
+            return;
+        }
+
+        const currentVersion = history[0]; // Assuming first is the latest/current
+        const versionsToDelete = history.slice(1); // All except the current
+
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete All Other Versions?',
+            message: `Are you sure you want to delete ${versionsToDelete.length} older version(s)? This will keep only the current version (${currentVersion.versionNumber || currentVersion.id}). This action cannot be undone.`,
+            confirmText: 'Delete All Others',
+            isDangerous: true,
+            onConfirm: async () => {
+                try {
+                    // Delete all versions except the current one
+                    for (const ver of versionsToDelete) {
+                        // @ts-ignore
+                        await window.api.draft.delete(projectRoot, ver.id);
+                    }
+
+                    // Refresh the history
+                    // @ts-ignore
+                    const fullHistory = await window.api.draft.getHistory(projectRoot);
+
+                    // Filter to only show versions for the current file
+                    const relPath = getRelativePath();
+                    if (relPath) {
+                        const filtered = fullHistory.filter(ver => {
+                            if (ver.files[relPath]) return true;
+                            const normPath = relPath.replace(/\\/g, '/');
+                            const hasKey = Object.keys(ver.files).some(k => k.replace(/\\/g, '/') === normPath);
+                            return hasKey;
+                        });
+                        setHistory(filtered);
+                    } else {
+                        setHistory([]);
+                    }
+
+                    alert(`Successfully deleted ${versionsToDelete.length} version(s).`);
+                } catch (e) {
+                    console.error('Failed to delete versions:', e);
+                    alert('Failed to delete some versions. Check console for details.');
+                }
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
             }
         });
@@ -465,6 +580,13 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                     placeholder="Version Label (e.g. Added textures)"
                                     value={versionLabel}
                                     onChange={e => setVersionLabel(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleCreateVersion();
+                                        }
+                                    }}
                                     autoFocus
                                 />
                                 <div className="creation-actions">
@@ -478,7 +600,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                 <div className="version-left">
                                     <div className="version-badge" title={`ID: ${ver.id}`}>
                                         {idx === 0 && <GitBranch size={12} style={{ marginRight: 6 }} />}
-                                        v{ver.versionNumber || 'X.X'}
+                                        v{history.length - idx}
                                     </div>
                                 </div>
                                 <div className="version-content">
@@ -488,18 +610,18 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                             year: 'numeric', month: 'short', day: 'numeric',
                                             hour: '2-digit', minute: '2-digit'
                                         })}</span>
-                                        <span>{Object.keys(ver.files).length} files • {Math.floor(Math.random() * 50 + 10)}.0 MB</span>
+                                        <span>{Object.keys(ver.files).length} files • {formatSize(ver.totalSize || 0)}</span>
                                     </div>
                                 </div>
                                 <div className="version-actions-right">
                                     <button
                                         className="version-action-btn"
-                                        onClick={() => handleDownload(ver)}
+                                        onClick={() => handleDownload(ver, history.length - idx)}
                                         title={file.isDirectory ? "Cannot download directory" : "Download this file version"}
                                         disabled={file.isDirectory}
                                         style={file.isDirectory ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     >
-                                        <CloudDownload size={14} />
+                                        <Download size={14} />
                                     </button>
                                     <button className="version-action-btn" onClick={() => handleDeleteVersion(ver.id)} title="Delete"><Trash2 size={14} /></button>
                                     <button className="version-action-btn" onClick={() => handleRestore(ver.id)} title="Restore (Overwrites current)"><RotateCcw size={14} /></button>
@@ -628,7 +750,19 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                 activeTab === 'attachments' ? 'Attachments' : 'Details'}
                     </h3>
                     {activeTab === 'versions' && (
-                        <button className="upload-btn" onClick={() => setIsCreating(true)}>+ New Version</button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {history.length > 1 && (
+                                <button
+                                    className="btn-cancel"
+                                    onClick={handleDeleteAllOtherVersions}
+                                    style={{ fontSize: 12, padding: '6px 12px' }}
+                                    title="Delete all versions except the current one"
+                                >
+                                    Delete All Others
+                                </button>
+                            )}
+                            <button className="upload-btn" onClick={() => setIsCreating(true)}>+ New Version</button>
+                        </div>
                     )}
                 </div>
                 {renderContent()}

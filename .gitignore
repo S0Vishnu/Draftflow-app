@@ -1,6 +1,9 @@
 node_modules
-dist
 out
+dist
+dist-web
 .DS_Store
-.eslintcache
-*.log*
+.env
+.env.local
+.draft
+*.log

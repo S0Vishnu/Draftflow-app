@@ -7,14 +7,14 @@
             "DOM.Iterable",
             "ESNext"
         ],
-        "allowJs": false,
+        "allowJs": true,
         "skipLibCheck": true,
-        "esModuleInterop": false,
+        "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
-        "strict": true,
+        "strict": false,
         "forceConsistentCasingInFileNames": true,
         "module": "ESNext",
-        "moduleResolution": "Node",
+        "moduleResolution": "Bundler",
         "resolveJsonModule": true,
         "isolatedModules": true,
         "noEmit": true,
@@ -22,18 +22,18 @@
         "baseUrl": ".",
         "paths": {
             "@renderer/*": [
-                "src/renderer/src/*"
+                "src/*"
             ]
         }
     },
     "include": [
-        "src/**/*.ts",
-        "src/**/*.tsx",
-        "src/**/*.d.ts"
+        "src/**/*",
+        "electron.vite.config.ts",
+        "vite.config.ts"
     ],
-    "references": [
-        {
-            "path": "./tsconfig.node.json"
-        }
+    "exclude": [
+        "node_modules",
+        "out",
+        "dist"
     ]
 }

@@ -412,9 +412,14 @@ export class DraftControlSystem {
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
 
-    // Backfill missing version numbers for legacy commits
+    // Read index once to get sizes
+    let index: VersionIndex | null = null;
+    try {
+        index = await this.readIndex();
+    } catch (e) { /* ignore */ }
+
+    // Backfill missing version numbers for legacy commits and calculate size
     let maxMajor = 0;
-    let maxMinor = 0;
 
     for (let i = 0; i < manifests.length; i++) {
         if (!manifests[i].versionNumber) {
@@ -427,6 +432,18 @@ export class DraftControlSystem {
         const maj = parseInt(parts[0]);
         // Treat 1 as 1.0
         if (!isNaN(maj) && maj > maxMajor) maxMajor = maj;
+
+        // Calculate Total Size
+        let totalSize = 0;
+        if (index && index.objects) {
+            for (const hash of Object.values(manifests[i].files)) {
+                if (index.objects[hash]) {
+                    totalSize += index.objects[hash].size;
+                }
+            }
+        }
+        // @ts-ignore
+        manifests[i].totalSize = totalSize;
     }
 
     // Sort by timestamp descending (newest first) for UI
