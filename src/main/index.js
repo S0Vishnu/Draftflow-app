@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { DraftControlSystem } from './services/DraftControlSystem'
 import icon from '../../resources/icon.png?asset'
 
 function createWindow() {
@@ -263,4 +264,72 @@ app.on('window-all-closed', () => {
        return false;
     }
   })
+
+  // --- Draft Control System ---
+
+  ipcMain.handle('draft:init', async (_, projectRoot) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      await dcs.init();
+      return true;
+    } catch (e) {
+      console.error('Draft Init Failed:', e);
+      return false;
+    }
+  });
+
+  ipcMain.handle('draft:commit', async (_, { projectRoot, label, files }) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      const versionId = await dcs.commit(label, files);
+      return { success: true, versionId };
+    } catch (e) {
+      console.error('Draft Commit Failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('draft:history', async (_, projectRoot) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      const history = await dcs.getHistory();
+      return history;
+    } catch (e) {
+      console.error('Draft History Failed:', e);
+      return [];
+    }
+  });
+
+  ipcMain.handle('draft:restore', async (_, { projectRoot, versionId }) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      await dcs.restore(versionId);
+      return true;
+    } catch (e) {
+      console.error('Draft Restore Failed:', e);
+      return false;
+    }
+  });
+
+  ipcMain.handle('draft:delete', async (_, { projectRoot, versionId }) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      await dcs.deleteVersion(versionId);
+      return true;
+    } catch (e) {
+      console.error('Draft Delete Failed:', e);
+      return false;
+    }
+  });
+
+  ipcMain.handle('draft:extract', async (_, { projectRoot, versionId, relativePath, destPath }) => {
+    try {
+      const dcs = new DraftControlSystem(projectRoot);
+      await dcs.extractFile(versionId, relativePath, destPath);
+      return true;
+    } catch (e) {
+      console.error('Draft Extract Failed:', e);
+      throw e; // Throw to let renderer know
+    }
+  });
 

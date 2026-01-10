@@ -32,6 +32,14 @@ interface Window {
     watchDir: (path: string) => Promise<boolean>;
     onFileChange: (callback: (data: { event: string; path: string }) => void) => () => void;
     confirm: (options: { message: string, title?: string, type?: string, buttons?: string[] }) => Promise<boolean>;
+    draft: {
+      init: (projectRoot: string) => Promise<boolean>;
+      commit: (projectRoot: string, label: string, files: string[]) => Promise<{ success: boolean; versionId?: string; error?: string }>;
+      getHistory: (projectRoot: string) => Promise<{ id: string; label: string; timestamp: string; files: Record<string, string> }[]>;
+      restore: (projectRoot: string, versionId: string) => Promise<boolean>;
+      delete: (projectRoot: string, versionId: string) => Promise<boolean>;
+      extract: (projectRoot: string, versionId: string, relativePath: string, destPath: string) => Promise<boolean>;
+    };
   };
 }
 

@@ -795,6 +795,7 @@ const Home = () => {
                 {isPreviewOpen && (
                     <InspectorPanel
                         file={activeFile}
+                        projectRoot={rootDir || currentPath || ''}
                         onClose={handleInspectorClose}
                     />
                 )}
@@ -1011,7 +1012,7 @@ const Home = () => {
                 /* Inspector Panel */
                 .inspector-panel {
                     width: 280px; background: var(--bg-sidebar); border-left: 1px solid var(--border);
-                    display: flex; flex-direction: column; padding: 20px; overflow-y: auto;
+                    display: flex; overflow-y: auto;
                 }
                 .inspector-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
                 .inspector-header h3 { font-size: 14px; font-weight: 600; margin: 0; }

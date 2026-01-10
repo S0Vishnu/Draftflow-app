@@ -20,7 +20,15 @@ const api = {
     electronAPI.ipcRenderer.on('fs:fileChanged', subscription);
     return () => electronAPI.ipcRenderer.removeListener('fs:fileChanged', subscription);
   },
-  confirm: (options) => electronAPI.ipcRenderer.invoke('dialog:confirm', options)
+  confirm: (options) => electronAPI.ipcRenderer.invoke('dialog:confirm', options),
+  draft: {
+    init: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:init', projectRoot),
+    commit: (projectRoot, label, files) => electronAPI.ipcRenderer.invoke('draft:commit', { projectRoot, label, files }),
+    getHistory: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:history', projectRoot),
+    restore: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:restore', { projectRoot, versionId }),
+    delete: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:delete', { projectRoot, versionId }),
+    extract: (projectRoot, versionId, relativePath, destPath) => electronAPI.ipcRenderer.invoke('draft:extract', { projectRoot, versionId, relativePath, destPath })
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
