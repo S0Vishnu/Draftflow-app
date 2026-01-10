@@ -17,6 +17,7 @@ interface ToolbarProps {
     onCreateFile: () => void;
     setViewMode: (mode: 'list' | 'grid') => void;
     onNavigate: (path: string) => void;
+    rootDir: string | null;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -30,37 +31,19 @@ const Toolbar: React.FC<ToolbarProps> = ({
     onCreateFolder,
     onCreateFile,
     setViewMode,
-    onNavigate
+    onNavigate,
+    rootDir
 }) => {
     // Helper to rebuild path up to index
     const getPathAtIndex = (parts: string[], index: number) => {
-        // We need to be careful with separators. 
-        // Assuming forward slashes for internal consistency or getting separator from original string if possible.
-        // But currentPath string likely uses a consistent separator or mixture.
-        // Safer way: re-join with '/' as JS handles it usually, or try to detect.
-        // If currentPath starts with '/', we need to preserve it.
-        // Actually, let's just use the parts slice.
         const slice = parts.slice(0, index + 1);
         let joined = slice.join('/');
-        // Fix for Windows drive letters which might look like "C:" -> "C:/"
-        // If the first part was "C:", join('/') gives "C:/Users"... which is fine.
-        // But if currentPath started with slash "/Users", split gives ["", "Users"]?
-        // Let's rely on the input path structure.
 
-        // Better yet: use the original separators? 
-        // Simplification: Construct path and let main process normalize if needed, 
-        // or just use "/" since Node/Electron usually handles it.
-
-        // Edge case: If path starts with '/' (Mac/Linux root), split('/') gives ['', 'Users', '...']
-        // internal map index will be 0 -> empty string.
         if (slice.length === 1 && slice[0] === '') return '/';
-
-        // If original had leading slash and split produced empty first element
         if (parts[0] === '' && slice.length > 1) {
-            return slice.join('/'); // "/Users"
+            return slice.join('/');
         }
-
-        if (index === 0 && parts[0].includes(':')) return parts[0] + '/'; // Windows Root C:/
+        if (index === 0 && parts[0].includes(':')) return parts[0] + '/';
 
         return joined;
     };
@@ -78,15 +61,65 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
                 <div className="divider-v"></div>
                 <div className="breadcrumbs-list">
+                    {/* Home/Root Icon */}
                     <HomeIcon
                         size={14}
-                        className="crumb-home clickable"
-                        onClick={onOpenWorkspace} // Mapping Home icon to Open Workspace for now, or could be user home
+                        className={`crumb-home ${!currentPath ? '' : 'clickable'}`}
+                        onClick={onOpenWorkspace}
                     />
-                    {currentPath ?
-                        currentPath.split(/[/\\]/).map((part, i, arr) => {
-                            if (!part && i === 0) return null; // Skip empty leading split for unix paths, manually handled?
-                            // Actually, let's just render what we have but calculate path correctly.
+
+                    {(() => {
+                        // Normalize paths for comparison (handle Windows backslashes)
+                        const normCurrent = currentPath ? currentPath.replace(/\\/g, '/') : '';
+                        const normRoot = rootDir ? rootDir.replace(/\\/g, '/') : '';
+
+                        // Check if current path is inside root (case insensitive check for Windows could be added, but robust startswith is okay for now)
+                        if (normCurrent && normRoot && normCurrent.startsWith(normRoot)) {
+                            // Calculate relative path parts
+                            const relative = normCurrent.slice(normRoot.length);
+                            const parts = relative.split('/').filter(p => p);
+
+                            // Always show Root Folder Name first
+                            // Use the actual rootDir string for display name to preserve original casing
+                            const rootName = normRoot.split('/').pop() || normRoot;
+
+                            return (
+                                <>
+                                    <ChevronRightIcon size={12} className="crumb-sep" />
+                                    <span
+                                        className={`crumb-part ${parts.length > 0 ? 'clickable' : ''}`}
+                                        onClick={() => parts.length > 0 && onNavigate(rootDir || normRoot)}
+                                        title={rootDir || normRoot}
+                                    >
+                                        {rootName}
+                                    </span>
+
+                                    {parts.map((part, i) => {
+                                        const relativePart = parts.slice(0, i + 1).join('/');
+                                        // Reconstruct absolute path
+                                        // Use normRoot to be safe with separators
+                                        const partPath = `${normRoot}/${relativePart}`;
+                                        const isLast = i === parts.length - 1;
+
+                                        return (
+                                            <React.Fragment key={i}>
+                                                <ChevronRightIcon size={12} className="crumb-sep" />
+                                                <span
+                                                    className={`crumb-part ${!isLast ? 'clickable' : ''}`}
+                                                    onClick={() => !isLast && onNavigate(partPath)}
+                                                >
+                                                    {part}
+                                                </span>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </>
+                            );
+                        }
+
+                        // Fallback / Absolute Path Mode
+                        return currentPath ? currentPath.split(/[/\\]/).map((part, i, arr) => {
+                            if (!part && i === 0) return null;
                             const fullPath = getPathAtIndex(arr, i);
                             const isLast = i === arr.length - 1;
 
@@ -101,9 +134,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                                     </span>
                                 </React.Fragment>
                             );
-                        })
-                        : <span className="crumb-part ml-2">No Workspace Open</span>
-                    }
+                        }) : <span className="crumb-part ml-2">No Workspace Open</span>;
+                    })()}
                 </div>
                 <style>{`
                     .clickable { cursor: pointer; transition: color 0.2s; }

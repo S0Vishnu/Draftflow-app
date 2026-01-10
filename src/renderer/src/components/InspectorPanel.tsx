@@ -32,9 +32,8 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, onClose }) => {
             </div>
 
             {!file ? (
-                <div className="empty-state">
-                    <Info size={48} className="text-muted" style={{ opacity: 0.3, margin: '0 auto 16px' }} />
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Select an item to view details</p>
+                <div className="empty-state" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <Info size={48} className="text-muted" style={{ opacity: 0.3 }} />
                 </div>
             ) : (
                 <>

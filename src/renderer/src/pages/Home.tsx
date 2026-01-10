@@ -17,6 +17,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Styles
 import './AuthShared.css';
+import Footer from '../components/Footer';
 
 const Home = () => {
     const [user] = useAuthState(auth);
@@ -30,6 +31,7 @@ const Home = () => {
 
     // Data
     const [currentPath, setCurrentPath] = useState<string | null>(() => localStorage.getItem('lastPath') || null);
+    const [rootDir, setRootDir] = useState<string | null>(() => localStorage.getItem('rootDir') || null);
     const [files, setFiles] = useState<FileEntry[]>([]);
 
     useEffect(() => {
@@ -38,6 +40,11 @@ const Home = () => {
             loadDirectory(currentPath);
         }
     }, [currentPath]);
+
+    useEffect(() => {
+        if (rootDir) localStorage.setItem('rootDir', rootDir);
+        else localStorage.removeItem('rootDir');
+    }, [rootDir]);
 
     // UIState
     const [viewMode, setViewMode] = useState<'list' | 'grid'>(() =>
@@ -99,15 +106,8 @@ const Home = () => {
             const path = Array.from(selectedPaths)[0];
             const file = files.find(f => f.path === path) || null;
             setActiveFile(file);
-        } else if (selectedPaths.size > 1) {
-            setActiveFile(null);
         } else {
-            // If cleared (0), keep showing the last active file if it still exists
-            setActiveFile(prev => {
-                if (!prev) return null;
-                const stillExists = files.find(f => f.path === prev.path);
-                return stillExists || null;
-            });
+            setActiveFile(null);
         }
     }, [selectedPaths, files]);
 
@@ -235,6 +235,7 @@ const Home = () => {
     const handleOpenFolder = async () => {
         const path = await window.api.openFolder();
         if (path) {
+            setRootDir(path); // Set the root directory for breadcrumbs
             setHistory([path]);
             setHistoryIndex(0);
             loadDirectory(path);
@@ -557,10 +558,31 @@ const Home = () => {
         paste: async () => {
             if (!appClipboard || !currentPath) return;
             for (const src of appClipboard.paths) {
-                const fileName = src.split(/[/\\]/).pop() || 'unknown';
-                let dest = `${currentPath}/${fileName}`;
-                if (appClipboard.op === 'copy') await window.api.copyEntry(src, dest);
-                else await window.api.renameEntry(src, dest);
+                const srcName = src.split(/[/\\]/).pop() || 'unknown';
+                let dest = `${currentPath}/${srcName}`;
+
+                // Collision handling
+                if (appClipboard.op === 'copy') {
+                    // If file exists, find unique name
+                    // Pattern: name (N).ext
+                    let finalName = srcName;
+                    let counter = 1;
+
+                    const nameParts = srcName.split('.');
+                    const ext = nameParts.length > 1 ? `.${nameParts.pop()}` : '';
+                    const base = nameParts.join('.');
+
+                    while (files.find(f => f.name === finalName)) {
+                        finalName = `${base} (${counter})${ext}`;
+                        counter++;
+                    }
+                    dest = `${currentPath}/${finalName}`;
+                    await window.api.copyEntry(src, dest);
+                }
+                else {
+                    // Cut/Move
+                    await window.api.renameEntry(src, dest);
+                }
             }
             if (appClipboard.op === 'cut') setAppClipboard(null);
             refreshDirectory();
@@ -583,7 +605,7 @@ const Home = () => {
             const isMulti = selectedPaths.size > 1;
             return [
                 { label: 'Open', action: menuActions.open, disabled: isMulti },
-                { label: 'Open Preview', action: menuActions.preview, disabled: isMulti },
+                { label: 'Open Details', action: menuActions.preview, disabled: isMulti },
                 { label: 'Show in Explorer', action: menuActions.showInExplorer, disabled: isMulti },
                 { label: 'Rename', action: menuActions.rename, shortcut: 'F2', disabled: isMulti },
                 { label: 'Cut', action: menuActions.cut, shortcut: 'Ctrl+X' },
@@ -623,6 +645,11 @@ const Home = () => {
 
             if (isCtrl && e.shiftKey && key === 'n') { e.preventDefault(); initCreateFolder(); }
             else if (isCtrl && key === 'n') { e.preventDefault(); initCreateFile(); }
+
+            if (e.key === 'Backspace' && !renamingFile && !isCreating) {
+                e.preventDefault();
+                navigateBack();
+            }
 
             if (selectedPaths.size > 0 || lastSelectedPath) {
                 if (e.key === 'F2') { e.preventDefault(); menuActions.rename(); }
@@ -688,87 +715,91 @@ const Home = () => {
     }, [selectedPaths, lastSelectedPath, renamingFile, isCreating, filteredFiles, appClipboard, currentPath, viewMode]);
 
     return (
-        <div className="app-shell">
-            <Sidebar
-                isOpen={isSidebarOpen}
-                user={user}
-                onOpenFolder={handleOpenFolder}
-                onSignOut={handleSignOut}
-            />
-
-            <main className="main-content">
-                <Header
-                    isSidebarOpen={isSidebarOpen}
-                    toggleSidebar={() => setSidebarOpen(!isSidebarOpen)}
-                    isPreviewOpen={isPreviewOpen}
-                    togglePreview={() => setPreviewOpen(!isPreviewOpen)}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    refreshDirectory={refreshDirectory}
-                    isLoading={isLoading}
+        <div className="app-shell" style={{ flexDirection: 'column' }}>
+            <div className="app-inner" style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
+                <Sidebar
+                    isOpen={isSidebarOpen}
+                    user={user}
+                    onOpenFolder={handleOpenFolder}
+                    onSignOut={handleSignOut}
                 />
 
-                <Toolbar
-                    currentPath={currentPath}
-                    historyIndex={historyIndex}
-                    historyLength={history.length}
-                    viewMode={viewMode}
-                    onNavigateBack={navigateBack}
-                    onNavigateForward={navigateForward}
-                    onOpenWorkspace={handleOpenFolder}
-                    onCreateFolder={initCreateFolder}
-                    onCreateFile={initCreateFile}
-                    setViewMode={setViewMode}
-                    onNavigate={navigateTo}
-                />
-
-                <div
-                    className="content-area"
-                    ref={contentRef}
-                    onMouseDown={handleMouseDown}
-                    onContextMenu={(e) => handleContextMenu(e)}
-                >
-                    <FileList
-                        files={filteredFiles}
-                        viewMode={viewMode}
-                        selectedPaths={selectedPaths}
-                        renamingFile={renamingFile}
-                        renameValue={renameValue}
-                        sortConfig={sortConfig}
-                        isCreating={isCreating}
-                        creationName={creationName}
-                        onSort={handleSort}
-                        onSelect={handleSelectFile}
-                        onNavigate={handleDoubleClick}
-                        onRenameChange={setRenameValue}
-                        onRenameSubmit={handleRenameSubmit}
-                        onRenameCancel={cancelRenaming}
-                        onContextMenu={handleContextMenu}
-                        onCreationChange={setCreationName}
-                        onCreationSubmit={submitCreation}
-                        onCreationCancel={cancelCreation}
+                <main className="main-content">
+                    <Header
+                        isSidebarOpen={isSidebarOpen}
+                        toggleSidebar={() => setSidebarOpen(!isSidebarOpen)}
+                        isPreviewOpen={isPreviewOpen}
+                        togglePreview={() => setPreviewOpen(!isPreviewOpen)}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        refreshDirectory={refreshDirectory}
+                        isLoading={isLoading}
                     />
 
-                    {isSelecting && selectionBox && (
-                        <div
-                            className="selection-box"
-                            style={{
-                                left: selectionBox.x,
-                                top: selectionBox.y,
-                                width: selectionBox.width,
-                                height: selectionBox.height
-                            }}
-                        />
-                    )}
-                </div>
-            </main>
+                    <Toolbar
+                        currentPath={currentPath}
+                        historyIndex={historyIndex}
+                        historyLength={history.length}
+                        viewMode={viewMode}
+                        onNavigateBack={navigateBack}
+                        onNavigateForward={navigateForward}
+                        onOpenWorkspace={handleOpenFolder}
+                        onCreateFolder={initCreateFolder}
+                        onCreateFile={initCreateFile}
+                        setViewMode={setViewMode}
+                        onNavigate={navigateTo}
+                        rootDir={rootDir}
+                    />
 
-            {isPreviewOpen && (
-                <InspectorPanel
-                    file={activeFile}
-                    onClose={handleInspectorClose}
-                />
-            )}
+                    <div
+                        className="content-area"
+                        ref={contentRef}
+                        onMouseDown={handleMouseDown}
+                        onContextMenu={(e) => handleContextMenu(e)}
+                    >
+                        <FileList
+                            files={filteredFiles}
+                            viewMode={viewMode}
+                            selectedPaths={selectedPaths}
+                            renamingFile={renamingFile}
+                            renameValue={renameValue}
+                            sortConfig={sortConfig}
+                            isCreating={isCreating}
+                            creationName={creationName}
+                            onSort={handleSort}
+                            onSelect={handleSelectFile}
+                            onNavigate={handleDoubleClick}
+                            onRenameChange={setRenameValue}
+                            onRenameSubmit={handleRenameSubmit}
+                            onRenameCancel={cancelRenaming}
+                            onContextMenu={handleContextMenu}
+                            onCreationChange={setCreationName}
+                            onCreationSubmit={submitCreation}
+                            onCreationCancel={cancelCreation}
+                        />
+
+                        {isSelecting && selectionBox && (
+                            <div
+                                className="selection-box"
+                                style={{
+                                    left: selectionBox.x,
+                                    top: selectionBox.y,
+                                    width: selectionBox.width,
+                                    height: selectionBox.height
+                                }}
+                            />
+                        )}
+                    </div>
+                </main>
+
+                {isPreviewOpen && (
+                    <InspectorPanel
+                        file={activeFile}
+                        onClose={handleInspectorClose}
+                    />
+                )}
+            </div>
+            <Footer />
 
             {contextMenu && (
                 <ContextMenu
