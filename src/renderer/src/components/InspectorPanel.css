@@ -358,6 +358,99 @@
     border-bottom: 1px solid #222;
 }
 
+
 .text-muted {
     color: #444;
+}
+
+/* Tasks Tab */
+.tasks-container {
+    padding: 20px;
+}
+
+.add-task-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1a1b20;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #2a2b36;
+    transition: background 0.2s;
+}
+
+.task-item:hover {
+    background: #202127;
+}
+
+.task-delete-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.task-item:hover .task-delete-btn {
+    opacity: 1;
+}
+
+/* Attachments Tab */
+.attachments-container {
+    padding: 20px;
+}
+
+.attachments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.attachment-item {
+    position: relative;
+    aspect-ratio: 1;
+    background: #1a1b20;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #2a2b36;
+}
+
+.attachment-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.attachment-item:hover .attachment-overlay {
+    opacity: 1;
+}
+
+.attachment-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-size: 10px;
+    padding: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1;
 }

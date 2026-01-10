@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-    X, Folder, File, Info, Clock, CheckCircle, ThumbsUp, Layers, Paperclip,
-    CloudDownload, Eye, Trash2, GitBranch, RotateCcw
+    X, Folder, File, Info, CheckCircle, Layers, Paperclip,
+    CloudDownload, Trash2, GitBranch, RotateCcw, Plus, CheckSquare, Image as ImageIcon
 } from 'lucide-react';
 import { FileEntry } from './FileItem';
 import './InspectorPanel.css';
+import ConfirmDialog from './ConfirmDialog';
 
 interface InspectorPanelProps {
     file: FileEntry | null;
@@ -14,19 +15,44 @@ interface InspectorPanelProps {
     onDelete?: (e: React.MouseEvent) => void;
 }
 
-type Tab = 'info' | 'history' | 'status' | 'likes' | 'versions' | 'attachments';
+type Tab = 'info' | 'tasks' | 'versions' | 'attachments';
 
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 800;
 
-import ConfirmDialog from './ConfirmDialog';
+interface TodoItem {
+    id: string;
+    text: string;
+    completed: boolean;
+    createdAt: number;
+}
+
+interface AttachmentItem {
+    id: string;
+    type: 'image';
+    path: string; // Internal path e.g. "attachments/..."
+    name: string;
+    createdAt: number;
+}
 
 const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onClose }) => {
-    // Default to 'versions' if we want to match the image immediately, otherwise 'info'
     const [activeTab, setActiveTab] = useState<Tab>('versions');
     const [width, setWidth] = useState(420);
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
+
+    // Tasks & Attachments State
+    const [todos, setTodos] = useState<TodoItem[]>([]);
+    const [newTodo, setNewTodo] = useState('');
+    const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+
+    // Version State
+    const [history, setHistory] = useState<any[]>([]);
+    const [isCreating, setIsCreating] = useState(false);
+    const [versionLabel, setVersionLabel] = useState('');
+    const [loading, setLoading] = useState(false);
 
     // Confirm Dialog State
     const [confirmState, setConfirmState] = useState({
@@ -38,6 +64,71 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
         onConfirm: () => { }
     });
 
+    // Helper to get relative path
+    const getRelativePath = useCallback(() => {
+        if (!file || !projectRoot) return null;
+        if (file.path.startsWith(projectRoot)) {
+            let rel = file.path.substring(projectRoot.length);
+            if (rel.startsWith('\\') || rel.startsWith('/')) rel = rel.substring(1);
+            return rel;
+        }
+        return file.path;
+    }, [file, projectRoot]);
+
+    // Load Metadata
+    useEffect(() => {
+        if (!file || !projectRoot) return;
+
+        const load = async () => {
+            const relPath = getRelativePath();
+            if (!relPath) return;
+
+            try {
+                // @ts-ignore
+                const meta = await window.api.draft.getMetadata(projectRoot, relPath);
+                if (meta) {
+                    setTodos(meta.tasks || []);
+                    setAttachments(meta.attachments || []);
+                } else {
+                    setTodos([]);
+                    setAttachments([]);
+                }
+            } catch (e) {
+                console.error("Failed to load metadata", e);
+            }
+        };
+        load();
+    }, [file, projectRoot, getRelativePath]);
+
+    // Save Helpers
+    const persistMetadata = async (newTodos: TodoItem[], newAttachments: AttachmentItem[]) => {
+        const relPath = getRelativePath();
+        if (!relPath || !projectRoot) return;
+
+        try {
+            // @ts-ignore
+            await window.api.draft.saveMetadata(projectRoot, relPath, {
+                tasks: newTodos,
+                attachments: newAttachments
+            });
+        } catch (e) {
+            console.error("Failed to save metadata", e);
+        }
+    };
+
+    const saveTodos = (newTodos: TodoItem[]) => {
+        setTodos(newTodos);
+        persistMetadata(newTodos, attachments);
+    };
+
+    const saveAttachments = (newAttach: AttachmentItem[]) => {
+        setAttachments(newAttach);
+        persistMetadata(todos, newAttach);
+    };
+
+    // --- Logic for Tabs ---
+
+    // Resize
     const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
         mouseDownEvent.preventDefault();
         setIsResizing(true);
@@ -45,35 +136,18 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
 
     useEffect(() => {
         if (!isResizing) return;
-
         const handleMouseMove = (e: MouseEvent) => {
-            // Since panel is on the right, dragging left increases width
-            // We need to calculate based on window width or relative movement
-            // A clearer way for a right-aligned panel:
-            // newWidth = window.innerWidth - e.clientX
-            // But we must account for the sidebar position if it's not strictly right-docked?
-            // Assuming it's the last element in a flex row:
             const newWidth = document.body.clientWidth - e.clientX;
-
-            if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-                setWidth(newWidth);
-            }
+            if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) setWidth(newWidth);
         };
-
-        const handleMouseUp = () => {
-            setIsResizing(false);
-        };
-
+        const handleMouseUp = () => setIsResizing(false);
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
-
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [isResizing]);
-
-
 
     const formatSize = (bytes?: number) => {
         if (bytes === undefined) return '--';
@@ -90,40 +164,25 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             ' - ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     };
 
-    // Real Version Logic
-    const [history, setHistory] = useState<any[]>([]);
-    const [isCreating, setIsCreating] = useState(false);
-    const [versionLabel, setVersionLabel] = useState('');
-    const [loading, setLoading] = useState(false);
-
+    // Versions
     useEffect(() => {
         if (activeTab === 'versions' && projectRoot && file) {
+            // @ts-ignore
             window.api.draft.getHistory(projectRoot).then((fullHistory: any[]) => {
-                // Filter history to only show versions relevant to this file
-                let relativePath = file.path;
-                if (file.path.startsWith(projectRoot)) {
-                    relativePath = file.path.substring(projectRoot.length);
-                    // Remove leading slash/backslash
-                    if (relativePath.startsWith('\\') || relativePath.startsWith('/')) {
-                        relativePath = relativePath.substring(1);
-                    }
-                }
+                const relPath = getRelativePath();
+                if (!relPath) return;
 
                 const filtered = fullHistory.filter(ver => {
-                    // Check if file exists in this version
-                    // 1. Try strict match
-                    if (ver.files[relativePath]) return true;
-
-                    // 2. Try normalized match (forward slashes)
-                    const normPath = relativePath.replace(/\\/g, '/');
+                    if (ver.files[relPath]) return true;
+                    // Normalized match
+                    const normPath = relPath.replace(/\\/g, '/');
                     const hasKey = Object.keys(ver.files).some(k => k.replace(/\\/g, '/') === normPath);
                     return hasKey;
                 });
-
                 setHistory(filtered);
             });
         }
-    }, [activeTab, projectRoot, file]);
+    }, [activeTab, projectRoot, file, getRelativePath]);
 
     const recursiveScan = async (dir: string): Promise<string[]> => {
         // @ts-ignore
@@ -146,9 +205,11 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
         setLoading(true);
         try {
             const files = await recursiveScan(projectRoot);
+            // @ts-ignore
             await window.api.draft.commit(projectRoot, versionLabel, files);
             setVersionLabel('');
             setIsCreating(false);
+            // @ts-ignore
             const newHistory = await window.api.draft.getHistory(projectRoot);
             setHistory(newHistory);
         } catch (e) {
@@ -165,6 +226,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             confirmText: 'Restore',
             isDangerous: true,
             onConfirm: async () => {
+                // @ts-ignore
                 await window.api.draft.restore(projectRoot, vId);
                 window.location.reload();
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
@@ -174,22 +236,8 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
 
     const handleDownload = async (ver: any) => {
         if (!file || !projectRoot) return;
-
-        // Calculate relative path
-        // We need to be careful with slashes on Windows vs Posix in the manifest
-        // We will try to rely on the backend finding it, but we need to pass a clean relative path.
-        let relativePath = file.path;
-        if (file.path.startsWith(projectRoot)) {
-            // Remove project root
-            relativePath = file.path.substring(projectRoot.length);
-            // Remove leading slash
-            if (relativePath.startsWith('\\') || relativePath.startsWith('/')) {
-                relativePath = relativePath.substring(1);
-            }
-        } else {
-            console.error("File is not in project root?", file.path, projectRoot);
-            return;
-        }
+        const relativePath = getRelativePath();
+        if (!relativePath) return;
 
         const parts = file.name.split('.');
         let nameWithoutExt = file.name;
@@ -199,22 +247,15 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             nameWithoutExt = parts.join('.');
         }
 
-        const verNum = ver.versionNumber || '1'; // Default to integer 1
+        const verNum = ver.versionNumber || '1';
         const newFileName = `${nameWithoutExt}-v${verNum}${ext}`;
-
-        // Target is in the same folder as the original file
-        // e.g. /path/to/file.txt -> /path/to/file-v1.0.txt
         const parentDir = file.path.substring(0, file.path.lastIndexOf(file.name));
-        // Use forward slash for path join simply or use platform specific in renderer?
-        // Electron renderer is web, but usually can handle forward slashes unless purely string check.
-        // Let's assume input path structure is preserved.
-        // Actually, just substring logic is safer than path module in browser environment if path module isn't polyfilled.
         const destPath = parentDir + newFileName;
 
         const performExtraction = async () => {
             try {
+                // @ts-ignore
                 await window.api.draft.extract(projectRoot, ver.id, relativePath, destPath);
-                // alert(`Saved version to ${newFileName}`);
             } catch (e: any) {
                 alert(`Failed to save: ${e.message || e}`);
             }
@@ -222,6 +263,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
         };
 
         // Check availability
+        // @ts-ignore
         const stats = await window.api.getStats(destPath);
         if (stats) {
             setConfirmState({
@@ -245,12 +287,92 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             confirmText: 'Delete',
             isDangerous: true,
             onConfirm: async () => {
+                // @ts-ignore
                 await window.api.draft.delete(projectRoot, vId);
+                // @ts-ignore
                 const newHistory = await window.api.draft.getHistory(projectRoot);
                 setHistory(newHistory);
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
             }
         });
+    };
+
+    // Todo Logic
+    const addTodo = () => {
+        if (!newTodo.trim()) return;
+        const item: TodoItem = {
+            id: Date.now().toString(),
+            text: newTodo.trim(),
+            completed: false,
+            createdAt: Date.now()
+        };
+        saveTodos([...todos, item]);
+        setNewTodo('');
+    };
+
+    const toggleTodo = (id: string) => {
+        const newList = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+        saveTodos(newList);
+    };
+
+    const deleteTodo = (id: string) => {
+        saveTodos(todos.filter(t => t.id !== id));
+    };
+
+    // Attachment Logic
+    const handleAddAttachment = async () => {
+        if (!projectRoot) {
+            alert("No project root found.");
+            return;
+        }
+
+        // @ts-ignore
+        const filePath = await window.api.openFile({
+            filters: [
+                { name: 'Images', extensions: ['jpg', 'png', 'gif', 'jpeg', 'webp', 'svg'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+
+        if (filePath) {
+            // @ts-ignore
+            const result = await window.api.draft.saveAttachment(projectRoot, filePath);
+
+            if (result.success) {
+                const newAttach: AttachmentItem = {
+                    id: Date.now().toString(),
+                    type: 'image',
+                    path: result.path,
+                    name: filePath.split(/[/\\]/).pop() || 'image',
+                    createdAt: Date.now()
+                };
+                saveAttachments([...attachments, newAttach]);
+            } else {
+                alert('Failed to save attachment');
+            }
+        }
+    };
+
+    const resolveAttachmentPath = (attPath: string) => {
+        let fullPath = attPath;
+        if (attPath.startsWith('attachments/')) {
+            fullPath = `${projectRoot}/.draft/${attPath}`;
+        }
+
+        // Normalize slashes
+        fullPath = fullPath.replace(/\\/g, '/');
+
+        // Ensure absolute paths start with / for file:// protocol
+        // e.g. C:/... -> /C:/... -> file:///C:/...
+        if (!fullPath.startsWith('/')) {
+            fullPath = '/' + fullPath;
+        }
+
+        return `file://${fullPath}`;
+    };
+
+    const deleteAttachment = (id: string) => {
+        saveAttachments(attachments.filter(a => a.id !== id));
     };
 
     const renderContent = () => {
@@ -295,6 +417,43 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                             </div>
                         </div>
                     </>
+                );
+            case 'tasks':
+                return (
+                    <div className="tasks-container" style={{ padding: 20 }}>
+                        <div className="add-task-row" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                            <input
+                                type="text"
+                                className="creation-input"
+                                placeholder="Add a new task..."
+                                value={newTodo}
+                                onChange={e => setNewTodo(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addTodo()}
+                                style={{ marginBottom: 0 }}
+                            />
+                            <button className="btn-commit" onClick={addTodo}><Plus size={16} /></button>
+                        </div>
+
+                        <div className="tasks-list">
+                            {todos.length === 0 && <div className="text-muted" style={{ textAlign: 'center', fontSize: 13 }}>No tasks yet.</div>}
+                            {todos.map(todo => (
+                                <div key={todo.id} className="task-item" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: '#1a1b20', padding: 8, borderRadius: 6 }}>
+                                    <button
+                                        onClick={() => toggleTodo(todo.id)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: todo.completed ? '#4a5db5' : '#666', padding: 0 }}
+                                    >
+                                        {todo.completed ? <CheckSquare size={18} /> : <div style={{ width: 16, height: 16, border: '2px solid #666', borderRadius: 3 }}></div>}
+                                    </button>
+                                    <span style={{ flex: 1, textDecoration: todo.completed ? 'line-through' : 'none', color: todo.completed ? '#666' : '#eee', fontSize: 13 }}>
+                                        {todo.text}
+                                    </span>
+                                    <button onClick={() => deleteTodo(todo.id)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 4 }} className="task-delete-btn">
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 );
             case 'versions':
                 return (
@@ -352,12 +511,65 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                         )}
                     </div>
                 );
-            default:
+            case 'attachments':
                 return (
-                    <div style={{ padding: 20, textAlign: 'center', color: '#666' }}>
-                        This view is not implemented yet.
+                    <div className="attachments-container" style={{ padding: 20 }}>
+                        <div style={{ marginBottom: 20 }}>
+                            <button className="upload-btn" onClick={handleAddAttachment} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px' }}>
+                                <Plus size={16} /> Add Image Reference
+                            </button>
+                        </div>
+
+                        <div className="attachments-grid" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                            gap: 12
+                        }}>
+                            {attachments.length === 0 && <div className="text-muted" style={{ gridColumn: '1/-1', textAlign: 'center', fontSize: 13 }}>No attachments yet.</div>}
+                            {attachments.map(att => (
+                                <div
+                                    key={att.id}
+                                    className="attachment-item"
+                                    style={{
+                                        position: 'relative',
+                                        aspectRatio: '1',
+                                        background: '#1a1b20',
+                                        borderRadius: 8,
+                                        overflow: 'hidden',
+                                        border: '1px solid #2a2b36',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => setPreviewImage(resolveAttachmentPath(att.path))}
+                                >
+                                    {att.type === 'image' && (
+                                        <img
+                                            src={resolveAttachmentPath(att.path)}
+                                            alt={att.name}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                    )}
+                                    <div className="attachment-overlay"
+                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                        onMouseLeave={e => e.currentTarget.style.opacity = '0'}
+                                    >
+                                        <button onClick={(e) => { e.stopPropagation(); deleteAttachment(att.id); }} style={{ position: 'absolute', background: 'crimson', border: 'none', color: '#fff', borderRadius: 4, padding: 6, cursor: 'pointer', top: 6, right: 6 }}>
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                    <div style={{
+                                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                                        background: 'rgba(0,0,0,0.8)', color: '#fff',
+                                        fontSize: 10, padding: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                    }}>
+                                        {att.name}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 );
+            default:
+                return null;
         }
     };
 
@@ -375,26 +587,13 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                 </button>
 
                 <button
-                    className={`sidebar-icon-btn ${activeTab === 'history' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('history')}
-                    title="History"
-                >
-                    <Clock size={18} />
-                </button>
-                <button
-                    className={`sidebar-icon-btn ${activeTab === 'status' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('status')}
-                    title="Status"
+                    className={`sidebar-icon-btn ${activeTab === 'tasks' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('tasks')}
+                    title="Tasks"
                 >
                     <CheckCircle size={18} />
                 </button>
-                <button
-                    className={`sidebar-icon-btn ${activeTab === 'likes' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('likes')}
-                    title="Approvals"
-                >
-                    <ThumbsUp size={18} />
-                </button>
+
                 <button
                     className={`sidebar-icon-btn ${activeTab === 'versions' ? 'active' : ''}`}
                     onClick={() => setActiveTab('versions')}
@@ -423,7 +622,11 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
 
             <div className="inspector-content">
                 <div className="inspector-header">
-                    <h3>{activeTab === 'versions' ? 'Versions' : 'Details'}</h3>
+                    <h3>
+                        {activeTab === 'versions' ? 'Versions' :
+                            activeTab === 'tasks' ? 'Tasks' :
+                                activeTab === 'attachments' ? 'Attachments' : 'Details'}
+                    </h3>
                     {activeTab === 'versions' && (
                         <button className="upload-btn" onClick={() => setIsCreating(true)}>+ New Version</button>
                     )}
@@ -440,6 +643,35 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                 onConfirm={confirmState.onConfirm}
                 onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
             />
+
+            {previewImage && (
+                <div
+                    className="image-preview-modal"
+                    style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        animation: 'fadeIn 0.2s ease'
+                    }}
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <button
+                        onClick={() => setPreviewImage(null)}
+                        style={{
+                            position: 'absolute', top: 20, right: 20,
+                            background: 'none', border: 'none', color: 'white', cursor: 'pointer'
+                        }}
+                    >
+                        <X size={32} />
+                    </button>
+                    <img
+                        src={previewImage}
+                        alt="Preview"
+                        style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+                        onClick={e => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </aside>
     );
 };

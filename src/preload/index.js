@@ -3,7 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
-  openFile: () => electronAPI.ipcRenderer.invoke('dialog:openFile'),
+  openFile: (options) => electronAPI.ipcRenderer.invoke('dialog:openFile', options),
   openFolder: () => electronAPI.ipcRenderer.invoke('dialog:openFolder'),
   readDir: (path) => electronAPI.ipcRenderer.invoke('fs:readDir', path),
   createFolder: (path) => electronAPI.ipcRenderer.invoke('fs:createFolder', path),
@@ -27,7 +27,10 @@ const api = {
     getHistory: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:history', projectRoot),
     restore: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:restore', { projectRoot, versionId }),
     delete: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:delete', { projectRoot, versionId }),
-    extract: (projectRoot, versionId, relativePath, destPath) => electronAPI.ipcRenderer.invoke('draft:extract', { projectRoot, versionId, relativePath, destPath })
+    extract: (projectRoot, versionId, relativePath, destPath) => electronAPI.ipcRenderer.invoke('draft:extract', { projectRoot, versionId, relativePath, destPath }),
+    saveAttachment: (projectRoot, filePath) => electronAPI.ipcRenderer.invoke('draft:saveAttachment', { projectRoot, filePath }),
+    saveMetadata: (projectRoot, relativePath, metadata) => electronAPI.ipcRenderer.invoke('draft:saveMetadata', { projectRoot, relativePath, metadata }),
+    getMetadata: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getMetadata', { projectRoot, relativePath })
   }
 }
 

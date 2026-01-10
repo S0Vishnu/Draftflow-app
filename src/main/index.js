@@ -14,7 +14,8 @@ function createWindow() {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: false
     }
   })
 
@@ -65,10 +66,11 @@ app.whenReady().then(() => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
-  ipcMain.handle('dialog:openFile', async () => {
+  ipcMain.handle('dialog:openFile', async (_, options) => {
     const { canceled, filePaths } = await import('electron').then(mod => 
       mod.dialog.showOpenDialog({
-        properties: ['openFile']
+        properties: ['openFile'],
+        filters: options?.filters
       })
     )
     if (canceled) {
@@ -155,13 +157,69 @@ app.whenReady().then(() => {
   ipcMain.handle('fs:renameEntry', async (_, { oldPath, newPath }) => {
     try {
         const fs = await import('fs/promises');
+        const path = await import('path');
         await fs.rename(oldPath, newPath);
+
+        // Attempt to move metadata if we are in a tracked project
+        try {
+             // We can check if oldPath is inside a project
+             // We need to find project root from oldPath
+             // Since DraftControlSystem class is imported, we can use the static method if we exposed it, 
+             // but `DraftControlSystem` is a default export in the file I viewed? 
+             // Actually it was `export class DraftControlSystem`.
+             const projectRoot = await DraftControlSystem.findProjectRoot(path.dirname(oldPath));
+             if (projectRoot) {
+                 const dcs = new DraftControlSystem(projectRoot);
+                 const oldRel = path.relative(projectRoot, oldPath);
+                 const newRel = path.relative(projectRoot, newPath);
+                 await dcs.moveMetadata(oldRel, newRel);
+             }
+        } catch (e) {
+            console.error("Failed to move metadata on rename:", e);
+            // Don't fail the rename operation just because metadata move failed
+        }
+
         return true;
     } catch (error) {
         console.error('Failed to rename entry:', error);
         return false;
     }
   })
+
+  // ... (keeping existing handlers)
+
+  ipcMain.handle('draft:saveAttachment', async (_, { projectRoot, filePath }) => {
+      try {
+          const dcs = new DraftControlSystem(projectRoot);
+          const internalPath = await dcs.saveAttachment(filePath);
+          return { success: true, path: internalPath };
+      } catch (e) {
+          console.error("Failed to save attachment:", e);
+          return { success: false, error: e.message };
+      }
+  });
+
+  ipcMain.handle('draft:saveMetadata', async (_, { projectRoot, relativePath, metadata }) => {
+      try {
+          const dcs = new DraftControlSystem(projectRoot);
+          await dcs.saveMetadata(relativePath, metadata);
+          return true;
+      } catch (e) {
+          console.error("Failed to save metadata:", e);
+          return false;
+      }
+  });
+
+  ipcMain.handle('draft:getMetadata', async (_, { projectRoot, relativePath }) => {
+      try {
+          const dcs = new DraftControlSystem(projectRoot);
+          const meta = await dcs.getMetadata(relativePath);
+          return meta;
+      } catch (e) {
+          console.error("Failed to get metadata:", e);
+          return null;
+      }
+  });
 
   ipcMain.handle('fs:copyEntry', async (_, { sourcePath, destPath }) => {
     try {

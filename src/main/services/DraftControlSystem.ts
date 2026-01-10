@@ -62,6 +62,8 @@ export class DraftControlSystem {
       await fs.mkdir(this.draftPath, { recursive: true });
       await fs.mkdir(this.objectsPath, { recursive: true });
       await fs.mkdir(this.versionsPath, { recursive: true });
+      await fs.mkdir(path.join(this.draftPath, 'metadata'), { recursive: true });
+      await fs.mkdir(path.join(this.draftPath, 'attachments'), { recursive: true });
       
       const initialIndex: VersionIndex = {
         objects: {},
@@ -69,7 +71,106 @@ export class DraftControlSystem {
         currentHead: null
       };
       await this.writeIndex(initialIndex);
+    } else {
+        // Ensure subdirs exist even if root exists
+        if (!existsSync(this.objectsPath)) await fs.mkdir(this.objectsPath, { recursive: true });
+        if (!existsSync(this.versionsPath)) await fs.mkdir(this.versionsPath, { recursive: true });
+        if (!existsSync(path.join(this.draftPath, 'metadata'))) await fs.mkdir(path.join(this.draftPath, 'metadata'), { recursive: true });
+        if (!existsSync(path.join(this.draftPath, 'attachments'))) await fs.mkdir(path.join(this.draftPath, 'attachments'), { recursive: true });
     }
+  }
+
+  // --- Metadata & Attachments ---
+
+  /**
+   * Save an attachment file to the internal storage.
+   * Returns the relative path within .draft (e.g. "attachments/<hash>.png")
+   */
+  async saveAttachment(filePath: string): Promise<string> {
+    await this.init();
+    // 1. Hash the content
+    const hash = await this.hashFile(filePath);
+    const ext = path.extname(filePath);
+    const filename = `${hash}${ext}`;
+    const destPath = path.join(this.draftPath, 'attachments', filename);
+
+    // 2. Copy if not exists
+    if (!existsSync(destPath)) {
+        await fs.copyFile(filePath, destPath);
+    }
+
+    return `attachments/${filename}`;
+  }
+
+  /**
+   * Save metadata (tasks, attachment refs) for a specific file.
+   */
+  async saveMetadata(relativePath: string, metadata: any): Promise<void> {
+    await this.init();
+    const hash = this.hashString(this.normalizePath(relativePath));
+    const metaFilePath = path.join(this.draftPath, 'metadata', `${hash}.json`);
+    await this.writeJson(metaFilePath, metadata);
+  }
+
+  /**
+   * Get metadata for a specific file.
+   */
+  async getMetadata(relativePath: string): Promise<any> {
+    const hash = this.hashString(this.normalizePath(relativePath));
+    const metaFilePath = path.join(this.draftPath, 'metadata', `${hash}.json`);
+    if (existsSync(metaFilePath)) {
+        return await this.readJson(metaFilePath);
+    }
+    return null;
+  }
+
+  /**
+   * Move metadata from one file path to another (used during rename).
+   */
+  async moveMetadata(oldRelativePath: string, newRelativePath: string): Promise<void> {
+    const oldHash = this.hashString(this.normalizePath(oldRelativePath));
+    const newHash = this.hashString(this.normalizePath(newRelativePath));
+    
+    const oldMetaPath = path.join(this.draftPath, 'metadata', `${oldHash}.json`);
+    const newMetaPath = path.join(this.draftPath, 'metadata', `${newHash}.json`);
+
+    if (existsSync(oldMetaPath)) {
+        await fs.rename(oldMetaPath, newMetaPath);
+    }
+  }
+
+  // --- Static Helpers ---
+
+  static async findProjectRoot(startPath: string): Promise<string | null> {
+      let current = startPath;
+      const fs = await import('fs/promises');
+      const path = await import('path');
+
+      while (true) {
+          const check = path.join(current, '.draft');
+          try {
+              await fs.access(check);
+              return current;
+          } catch {
+              // Not here
+          }
+          
+          const parent = path.dirname(current);
+          if (parent === current) return null; // Root reached
+          current = parent;
+      }
+  }
+
+  // --- Utils ---
+
+  private normalizePath(p: string): string {
+      // Normalize to forward slashes for consistent hashing across platforms/renames
+      // Also potentially handle case sensitivity if needed, but keeping it simple.
+      return p.replace(/\\/g, '/');
+  }
+
+  private hashString(content: string): string {
+      return crypto.createHash('sha256').update(content).digest('hex');
   }
 
   /**
