@@ -18,7 +18,7 @@ const GoogleIcon = () => (
 );
 
 const Login = () => {
-    const [email, setEmail] = useState('name@gmail.com');
+    const [email, setEmail] = useState('');
     const [signInWithGoogle, googleUser, googleLoading, googleError] = useSignInWithGoogle(auth);
     const navigate = useNavigate();
 
