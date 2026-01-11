@@ -26,7 +26,22 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div style={{ padding: 20, color: 'white' }}>
           <h1>Something went wrong.</h1>
-          <pre>{this.state.error?.toString()}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <details style={{ marginTop: '1rem' }}>
+            <summary style={{ cursor: 'pointer', opacity: 0.7 }}>View Stack Trace</summary>
+            <pre style={{
+              marginTop: '0.5rem',
+              padding: '1rem',
+              background: 'rgba(0,0,0,0.5)',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              overflowX: 'auto'
+            }}>
+              {this.state.error?.stack}
+            </pre>
+          </details>
         </div>
       );
     }

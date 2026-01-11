@@ -83,32 +83,72 @@ const Settings = () => {
 
     // Handle Profile Save
     const saveProfile = async () => {
-        if (!user) return;
+        console.log("Attempting to save profile...");
+        if (!user) {
+            console.error("No user found during save.");
+            toast.error("User not verified. Please login again.");
+            return;
+        }
+        if (!db) {
+            console.error("Firestore DB instance is missing.");
+            toast.error("Service unavailable (DB missing).");
+            return;
+        }
+
         setLoading(true);
         try {
-            // Update Firebase Profile (Display Name)
-            if (displayName !== user.displayName) {
-                await updateProfile(user, { displayName });
+            // 1. Generate Avatar
+            // We use the hosted DiceBear API for the URL to avoid Firebase's 2048 byte limit on photoURL.
+            // Local SVG generation produces Data URIs that are too long.
+            const seed = encodeURIComponent(settings.avatarSeed || 'default');
+            const newPhotoURL = `https://api.dicebear.com/9.x/lorelei/svg?seed=${seed}&radius=50&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
+
+            // 2. Update Firebase Auth Profile (Display Name and PhotoURL)
+            console.log("Updating Auth Profile:", { displayName, newPhotoURL });
+            if (displayName !== user.displayName || newPhotoURL !== user.photoURL) {
+                await updateProfile(user, {
+                    displayName: displayName || undefined,
+                    photoURL: newPhotoURL || undefined
+                });
                 setInitialDisplayName(displayName);
             }
 
-            // Save Profile-specific settings (bio, avatarSeed) to Firestore
+            // 3. Prepare Firestore Data
             const profileData = {
-                bio: settings.bio,
-                avatarSeed: settings.avatarSeed
+                bio: settings.bio || '',
+                avatarSeed: settings.avatarSeed || '',
+                photoURL: newPhotoURL || '',
+                updatedAt: new Date().toISOString(),
+                uid: user.uid, // Redundant but useful for queries
+                email: user.email // Useful for admin debugging
             };
 
+            // 4. Write to Firestore
+            console.log("Writing to Firestore (files/users/" + user.uid + "):", profileData);
             await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
 
-            // Update local backup
-            setInitialSettings(prev => ({ ...prev, ...profileData }));
-            localStorage.setItem(`user_settings_${user.uid}`, JSON.stringify({ ...initialSettings, ...profileData }));
+            // 5. Update Local State
+            localStorage.setItem(`user_settings_${user.uid}`, JSON.stringify(settings));
+            setInitialSettings(settings);
 
+            console.log("Save complete.");
             setIsEditing(false);
-            toast.success('Profile updated successfully!');
-        } catch (error) {
-            console.error(error);
-            toast.error('Failed to update profile.');
+            toast.success('Profile saved successfully!');
+
+        } catch (error: any) {
+            console.error("CRITICAL SAVE ERROR:", error);
+            console.error("Error Code:", error.code);
+            console.error("Error Message:", error.message);
+
+            if (error.code === 'permission-denied') {
+                toast.error("Permission denied. Check Firestore rules.");
+            } else if (error.code === 'unavailable') {
+                toast.error("Network offline or Firestore unreachable.");
+            } else {
+                toast.error(`Save failed: ${error.message}`);
+                // Fallback alert if toast misses
+                alert(`Save failed: ${error.message}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -441,7 +481,7 @@ const Settings = () => {
                             onClick={() => auth.signOut()}
                         >
                             <LogOut size={18} />
-                            Sign Out of {user?.email}
+                            Sign Out of Draftflow as {user?.email}
                         </button>
                     </div>
                 </main>
