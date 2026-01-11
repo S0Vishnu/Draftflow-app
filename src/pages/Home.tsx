@@ -11,9 +11,7 @@ import Toolbar from '../components/Toolbar';
 import FileList from '../components/FileList';
 import InspectorPanel from '../components/InspectorPanel';
 import ContextMenu from '../components/ContextMenu';
-import ConfirmDialog from '../components/ConfirmDialog';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 
 // Styles
 import './AuthShared.css';
@@ -170,6 +168,32 @@ const Home = () => {
             // Filter out .draft
             const visibleEntries = entries.filter((e: FileEntry) => e.name !== '.draft');
             let processed = await Promise.all(visibleEntries.map(fetchStats));
+
+            // Fetch versions if in a project
+            if (rootDir) {
+                try {
+                    const versions = await window.api.draft.getFileVersions(rootDir);
+                    processed = processed.map(f => {
+                        // Normalize path to match relative keys in versions map
+                        // Remove rootDir from path
+                        let relPath = f.path;
+                        if (relPath.startsWith(rootDir)) {
+                            relPath = relPath.substring(rootDir.length);
+                        }
+                        // Remove leading slash/backslash
+                        relPath = relPath.replace(/^[/\\]/, '');
+                        // Force forward slashes
+                        relPath = relPath.replace(/\\/g, '/');
+
+                        if (versions[relPath]) {
+                            return { ...f, latestVersion: versions[relPath] };
+                        }
+                        return f;
+                    });
+                } catch (err) {
+                    console.error("Failed to fetch versions:", err);
+                }
+            }
 
             if (sortConfig) {
                 processed = sortFiles(processed, sortConfig);
@@ -825,18 +849,7 @@ const Home = () => {
                 />
             )}
 
-            <ToastContainer
-                position="bottom-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="dark"
-            />
+
 
 
         </div>

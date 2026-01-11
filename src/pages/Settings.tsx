@@ -21,7 +21,6 @@ interface UserSettings {
 
 const Settings = () => {
     const [user] = useAuthState(auth);
-    const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -198,7 +197,7 @@ const Settings = () => {
         <div className="app-shell" style={{ flexDirection: 'column', height: '100vh', display: 'flex' }}>
             <div className="app-inner" style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
                 <Sidebar
-                    isOpen={isSidebarOpen}
+                    isOpen={true}
                     user={user}
                 />
                 <main className="main-content" style={{
