@@ -1,6 +1,7 @@
 import React from 'react';
 import { Power, Wifi, HelpCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import './Footer.css';
+import HelpModal from './HelpModal';
 
 interface FooterProps {
     onShutDown?: () => void;
@@ -8,6 +9,7 @@ interface FooterProps {
 
 const Footer: React.FC<FooterProps> = ({ onShutDown }) => {
     const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+    const [showHelp, setShowHelp] = React.useState(false);
 
     React.useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -33,7 +35,7 @@ const Footer: React.FC<FooterProps> = ({ onShutDown }) => {
             </div>
 
             <div className="footer-right">
-                <button className="footer-item" title="Help"><HelpCircle size={14} /></button>
+                <button className="footer-item" title="Help" onClick={() => setShowHelp(true)}><HelpCircle size={14} /></button>
                 <div className="footer-message-box">
                     Task details fetched
                 </div>
@@ -52,6 +54,7 @@ const Footer: React.FC<FooterProps> = ({ onShutDown }) => {
                     </div>
                 </div>
             </div>
+            <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
         </footer>
     );
 };
