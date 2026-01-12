@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -20,6 +21,7 @@ interface UserSettings {
 
 const Settings = () => {
     const [user] = useAuthState(auth);
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -182,6 +184,23 @@ const Settings = () => {
     const regenerateAvatar = () => {
         const newSeed = Math.random().toString(36).substring(7);
         setSettings({ ...settings, avatarSeed: newSeed });
+    };
+
+    const handleSignOut = async () => {
+        try {
+            localStorage.clear();
+
+            // Clear Electron Main Process Auth
+            if (window.api && window.api.auth) {
+                await window.api.auth.logout();
+            }
+
+            await auth.signOut();
+            navigate('/');
+        } catch (error) {
+            console.error("Error signing out:", error);
+            toast.error("Failed to sign out");
+        }
     };
 
     // Generate Avatar
@@ -476,7 +495,7 @@ const Settings = () => {
                                 fontSize: '1rem',
                                 width: '100%'
                             }}
-                            onClick={() => auth.signOut()}
+                            onClick={handleSignOut}
                         >
                             <LogOut size={18} />
                             Sign Out of Draftflow as {user?.email}
