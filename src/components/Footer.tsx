@@ -1,6 +1,6 @@
 import React from 'react';
 import { Power, Wifi, HelpCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
-import './Footer.css';
+import '../styles/Footer.css';
 import HelpModal from './HelpModal';
 
 interface FooterProps {

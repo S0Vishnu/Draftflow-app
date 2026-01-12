@@ -8,7 +8,6 @@ import { createAvatar } from '@dicebear/core';
 import { lorelei } from '@dicebear/collection';
 import { Bell, Moon, LogOut, RefreshCw, User, Clock, Shield, Edit2, X, Check } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { useNavigate } from 'react-router-dom';
 
 interface UserSettings {
     bio: string;

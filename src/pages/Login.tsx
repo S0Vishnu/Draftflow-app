@@ -5,7 +5,7 @@ import { useSignInWithGoogle } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase';
 import { toast } from 'react-toastify';
 import logoFull from '../assets/logo_full.svg';
-import './AuthShared.css';
+import '../styles/AuthShared.css';
 
 // ... (Icons remain same, skipping to Logic)
 

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { X, Heart, Coffee, ExternalLinkIcon } from 'lucide-react';
 import logo from '../assets/logo_full.svg';
-import './HelpModal.css';
+import '../styles/HelpModal.css';
 
 interface HelpModalProps {
     isOpen: boolean;

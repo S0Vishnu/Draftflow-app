@@ -14,7 +14,7 @@ import ContextMenu from '../components/ContextMenu';
 import { toast } from 'react-toastify';
 
 // Styles
-import './AuthShared.css';
+import '../styles/AuthShared.css';
 import Footer from '../components/Footer';
 
 const Home = () => {

@@ -4,7 +4,7 @@ import {
     Download, Trash2, GitBranch, RotateCcw, Plus, CheckSquare, Image as ImageIcon
 } from 'lucide-react';
 import { FileEntry } from './FileItem';
-import './InspectorPanel.css';
+import '../styles/InspectorPanel.css';
 import ConfirmDialog from './ConfirmDialog';
 
 interface InspectorPanelProps {
