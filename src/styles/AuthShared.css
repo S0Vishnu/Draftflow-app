@@ -35,6 +35,15 @@ body {
   position: relative;
 }
 
+.login-container .glow {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% 120%, #1c212c 0%, transparent 80%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
 /* Subtle glow blob behind the card */
 .login-container::before {
   content: '';
@@ -60,7 +69,7 @@ body {
   -webkit-backdrop-filter: blur(12px);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   text-align: center;
 }
 

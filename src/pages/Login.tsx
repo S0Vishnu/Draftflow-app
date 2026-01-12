@@ -117,6 +117,7 @@ const Login = () => {
 
     return (
         <div className="login-container">
+            <div className="glow"></div>
             <div className="login-card">
                 <div className="brand-header">
                     <img src={logoFull} alt="DRAFTFLOW" className="brand-logo-img" />
