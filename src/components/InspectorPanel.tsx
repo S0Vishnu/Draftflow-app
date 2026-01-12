@@ -493,8 +493,9 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     const renderContent = () => {
         if (!file) {
             return (
-                <div className="empty-state" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                    <Info size={48} className="text-muted" style={{ opacity: 0.3 }} />
+                <div className="empty-state" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <Info size={48} className="text-muted" style={{ opacity: 0.3, marginBottom: 12 }} />
+                    <span className="text-muted" style={{ opacity: 0.5, fontSize: '14px' }}>No file or folder selected</span>
                 </div>
             );
         }
@@ -761,7 +762,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                     Delete All Others
                                 </button>
                             )}
-                            <button className="upload-btn" onClick={() => setIsCreating(true)}>+ New Version</button>
+                            {file && <button className="upload-btn" onClick={() => setIsCreating(true)}>+ New Version</button>}
                         </div>
                     )}
                 </div>

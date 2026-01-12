@@ -11,6 +11,7 @@ import Toolbar from '../components/Toolbar';
 import FileList from '../components/FileList';
 import InspectorPanel from '../components/InspectorPanel';
 import ContextMenu from '../components/ContextMenu';
+import RecentWorkspaces from '../components/RecentWorkspaces';
 import { toast } from 'react-toastify';
 
 // Styles
@@ -32,10 +33,42 @@ const Home = () => {
     const [rootDir, setRootDir] = useState<string | null>(() => localStorage.getItem('rootDir') || null);
     const [files, setFiles] = useState<FileEntry[]>([]);
 
+    // Recent Workspaces
+    const [recentWorkspaces, setRecentWorkspaces] = useState<{ path: string, lastOpened: number, name: string }[]>(() => {
+        try {
+            const saved = localStorage.getItem('recentWorkspaces');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) { return []; }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('recentWorkspaces', JSON.stringify(recentWorkspaces));
+    }, [recentWorkspaces]);
+
+    const addToRecents = (path: string) => {
+        setRecentWorkspaces(prev => {
+            const filtered = prev.filter(w => w.path !== path);
+            const newItem = {
+                path,
+                lastOpened: Date.now(),
+                name: path.split(/[/\\]/).pop() || path
+            };
+            return [newItem, ...filtered].slice(0, 10);
+        });
+    };
+
+    const removeFromRecents = (path: string) => {
+        setRecentWorkspaces(prev => prev.filter(w => w.path !== path));
+    };
+
     useEffect(() => {
         if (currentPath) {
             localStorage.setItem('lastPath', currentPath);
             loadDirectory(currentPath);
+            addToRecents(currentPath);
+        } else {
+            localStorage.removeItem('lastPath');
+            setFiles([]);
         }
     }, [currentPath]);
 
@@ -133,6 +166,14 @@ const Home = () => {
     const handleSignOut = () => {
         signOut();
         navigate('/');
+    };
+
+    const closeWorkspace = () => {
+        setCurrentPath(null);
+        setRootDir(null);
+        setHistory([]);
+        localStorage.removeItem('lastPath');
+        localStorage.removeItem('rootDir');
     };
 
     // Data Loading
@@ -253,17 +294,21 @@ const Home = () => {
     const refreshDirectory = () => { if (currentPath) loadDirectory(currentPath); };
 
     // Navigation
+    const openWorkspace = (path: string) => {
+        if (path.split(/[/\\]/).some(p => p === '.draft')) {
+            toast.error("Access restricted");
+            return;
+        }
+        setRootDir(path); // Set the root directory for breadcrumbs
+        setHistory([path]);
+        setHistoryIndex(0);
+        loadDirectory(path);
+    };
+
     const handleOpenFolder = async () => {
         const path = await window.api.openFolder();
         if (path) {
-            if (path.split(/[/\\]/).some(p => p === '.draft')) {
-                toast.error("Access restricted");
-                return;
-            }
-            setRootDir(path); // Set the root directory for breadcrumbs
-            setHistory([path]);
-            setHistoryIndex(0);
-            loadDirectory(path);
+            openWorkspace(path);
         }
     };
 
@@ -321,11 +366,11 @@ const Home = () => {
         }
 
         setSelectedPaths(newSelection);
-        // Removed auto-preview logic as requested
     };
 
     // Box Selection
     const handleMouseDown = (e: React.MouseEvent) => {
+        if (!currentPath) return; // Disable box selection on start page
         if (e.button !== 0) return; // Only left click
         if (!contentRef.current) return;
 
@@ -652,12 +697,18 @@ const Home = () => {
             const isCtrl = e.ctrlKey || e.metaKey;
             const key = e.key.toLowerCase();
 
+
             if (renamingFile || isCreating) {
                 if (e.key === 'Escape') {
                     e.preventDefault();
                     cancelRenaming();
                     cancelCreation();
                 }
+                return;
+            }
+
+            const target = e.target as HTMLElement;
+            if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) {
                 return;
             }
 
@@ -746,6 +797,8 @@ const Home = () => {
                     isOpen={isSidebarOpen}
                     user={user}
                     onOpenFolder={handleOpenFolder}
+                    onGoHome={closeWorkspace}
+                    hasActiveWorkspace={!!currentPath}
                 />
 
                 <main className="main-content">
@@ -760,60 +813,71 @@ const Home = () => {
                         isLoading={isLoading}
                     />
 
-                    <Toolbar
-                        currentPath={currentPath}
-                        historyIndex={historyIndex}
-                        historyLength={history.length}
-                        viewMode={viewMode}
-                        onNavigateBack={navigateBack}
-                        onNavigateForward={navigateForward}
-                        onOpenWorkspace={handleOpenFolder}
-                        onCreateFolder={initCreateFolder}
-                        onCreateFile={initCreateFile}
-                        setViewMode={setViewMode}
-                        onNavigate={navigateTo}
-                        rootDir={rootDir}
-                    />
-
-                    <div
-                        className="content-area"
-                        ref={contentRef}
-                        onMouseDown={handleMouseDown}
-                        onContextMenu={(e) => handleContextMenu(e)}
-                    >
-                        <FileList
-                            files={filteredFiles}
-                            viewMode={viewMode}
-                            selectedPaths={selectedPaths}
-                            renamingFile={renamingFile}
-                            renameValue={renameValue}
-                            sortConfig={sortConfig}
-                            isCreating={isCreating}
-                            creationName={creationName}
-                            onSort={handleSort}
-                            onSelect={handleSelectFile}
-                            onNavigate={handleDoubleClick}
-                            onRenameChange={setRenameValue}
-                            onRenameSubmit={handleRenameSubmit}
-                            onRenameCancel={cancelRenaming}
-                            onContextMenu={handleContextMenu}
-                            onCreationChange={setCreationName}
-                            onCreationSubmit={submitCreation}
-                            onCreationCancel={cancelCreation}
-                        />
-
-                        {isSelecting && selectionBox && (
-                            <div
-                                className="selection-box"
-                                style={{
-                                    left: selectionBox.x,
-                                    top: selectionBox.y,
-                                    width: selectionBox.width,
-                                    height: selectionBox.height
-                                }}
+                    {currentPath ? (
+                        <>
+                            <Toolbar
+                                currentPath={currentPath}
+                                historyIndex={historyIndex}
+                                historyLength={history.length}
+                                viewMode={viewMode}
+                                onNavigateBack={navigateBack}
+                                onNavigateForward={navigateForward}
+                                onOpenWorkspace={handleOpenFolder}
+                                onCreateFolder={initCreateFolder}
+                                onCreateFile={initCreateFile}
+                                setViewMode={setViewMode}
+                                onNavigate={navigateTo}
+                                rootDir={rootDir}
                             />
-                        )}
-                    </div>
+
+                            <div
+                                className="content-area"
+                                ref={contentRef}
+                                onMouseDown={handleMouseDown}
+                                onContextMenu={(e) => handleContextMenu(e)}
+                            >
+                                <FileList
+                                    files={filteredFiles}
+                                    viewMode={viewMode}
+                                    selectedPaths={selectedPaths}
+                                    renamingFile={renamingFile}
+                                    renameValue={renameValue}
+                                    sortConfig={sortConfig}
+                                    isCreating={isCreating}
+                                    creationName={creationName}
+                                    onSort={handleSort}
+                                    onSelect={handleSelectFile}
+                                    onNavigate={handleDoubleClick}
+                                    onRenameChange={setRenameValue}
+                                    onRenameSubmit={handleRenameSubmit}
+                                    onRenameCancel={cancelRenaming}
+                                    onContextMenu={handleContextMenu}
+                                    onCreationChange={setCreationName}
+                                    onCreationSubmit={submitCreation}
+                                    onCreationCancel={cancelCreation}
+                                />
+
+                                {isSelecting && selectionBox && (
+                                    <div
+                                        className="selection-box"
+                                        style={{
+                                            left: selectionBox.x,
+                                            top: selectionBox.y,
+                                            width: selectionBox.width,
+                                            height: selectionBox.height
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <RecentWorkspaces
+                            recents={recentWorkspaces}
+                            onOpen={openWorkspace}
+                            onRemove={removeFromRecents}
+                            onOpenFolder={handleOpenFolder}
+                        />
+                    )}
                 </main>
 
                 {isPreviewOpen && (
@@ -834,10 +898,6 @@ const Home = () => {
                     onClose={closeContextMenu}
                 />
             )}
-
-
-
-
         </div>
     );
 };

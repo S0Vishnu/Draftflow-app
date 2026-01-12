@@ -216,6 +216,7 @@
     align-items: center;
     gap: 6px;
     white-space: nowrap;
+    padding-right: 16px;
     overflow: hidden;
     mask-image: linear-gradient(to right, black 90%, transparent 100%);
 }

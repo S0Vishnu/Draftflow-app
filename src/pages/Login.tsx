@@ -35,7 +35,7 @@ const Login = () => {
                 const credential = GoogleAuthProvider.credential(token);
                 await signInWithCredential(auth, credential);
                 toast.success("Logged in via System Browser!");
-                navigate('/home');
+                navigate('/home', { replace: true });
             } catch (error: any) {
                 console.error("Token sign-in failed", error);
                 toast.error("Auth failed: " + error.message);
@@ -53,7 +53,7 @@ const Login = () => {
                     const credential = GoogleAuthProvider.credential(token);
                     await signInWithCredential(auth, credential);
                     // Don't toast here as it's auto-login
-                    navigate('/home'); // Or let auth state listener handle it
+                    navigate('/home', { replace: true }); // Or let auth state listener handle it
                 } catch (e) {
                     console.error("Auto-login failed:", e);
                 }
@@ -66,7 +66,7 @@ const Login = () => {
     // Effect to handle navigation on successful google login (Legacy/Web fallback)
     React.useEffect(() => {
         if (googleUser) {
-            navigate('/home');
+            navigate('/home', { replace: true });
             toast.success("Successfully logged in!");
         }
     }, [googleUser, navigate]);
