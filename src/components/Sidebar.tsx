@@ -58,11 +58,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, user, onOpenFolder, onGoHome,
                 </div>
                 <div className="sidebar-bottom">
                     <button
-                        className={`side-btn ${isActive('/settings') ? 'active' : ''}`}
+                        className={`side-btn settings-btn ${isActive('/settings') ? 'active' : ''}`}
                         onClick={() => navigate('/settings')}
                         title="Settings & Profile"
                     >
-                        <SettingsIcon size={22} />
+                        {user?.photoURL ? (
+                            <img
+                                src={user.photoURL}
+                                alt="Profile"
+                                className="sidebar-profile-img"
+                            />
+                        ) : (
+                            <SettingsIcon size={22} />
+                        )}
                     </button>
                 </div>
             </div>
