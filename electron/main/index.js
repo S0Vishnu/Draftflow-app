@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join, resolve } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { DraftControlSystem } from './services/DraftControlSystem'
+import AdmZip from 'adm-zip'
 import icon from '../../public/icon.png?asset'
 
 // Secure Deep Linking & Auth
@@ -493,6 +494,46 @@ ipcMain.handle('draft:getFileVersion', async (_, { projectRoot, relativePath }) 
   } catch (e) {
     console.error('Draft Get File Version Failed:', e);
     return null;
+  }
+});
+
+ipcMain.handle('addon:download', async () => {
+  const { dialog } = await import('electron');
+  const path = await import('path');
+  const fs = await import('fs/promises');
+  const AdmZip = (await import('adm-zip')).default;
+
+  let sourcePath;
+  if (app.isPackaged) {
+    sourcePath = path.join(process.resourcesPath, 'aadons', 'draftflow_addon.py');
+  } else {
+    sourcePath = path.join(__dirname, '../../aadons/draftflow_addon.py');
+  }
+
+  // Check if file exists
+  try {
+    await fs.access(sourcePath);
+  } catch (error) {
+    console.error("Addon file not found at:", sourcePath);
+    return { success: false, error: 'Addon file missing in bundle.' };
+  }
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Save Blender Addon',
+    defaultPath: 'draftflow_addon.zip',
+    filters: [{ name: 'Zip Archive', extensions: ['zip'] }]
+  });
+
+  if (canceled || !filePath) return { success: false, userCancelled: true };
+
+  try {
+    const zip = new AdmZip();
+    zip.addLocalFile(sourcePath);
+    zip.writeZip(filePath);
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to save addon:', err);
+    return { success: false, error: err.message };
   }
 });
 
