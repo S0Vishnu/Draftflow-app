@@ -57,6 +57,11 @@ class AuthManager extends EventEmitter {
             const urlObj = new URL(url);
             if (urlObj.protocol !== 'myapp:') return;
 
+            if (urlObj.hostname === 'open' || urlObj.pathname.includes('open')) {
+                // Just opening the app, no auth needed
+                return;
+            }
+
             const token = urlObj.searchParams.get('token');
 
             if (!token) {

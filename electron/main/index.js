@@ -6,6 +6,10 @@ import icon from '../../public/icon.png?asset'
 
 // Secure Deep Linking & Auth
 import { authManager, setupAuthIPC } from './auth';
+import { startApiServer } from './api-server';
+
+// Start API Server
+let apiServer = startApiServer();
 
 // Register custom protocol
 const isDev = !app.isPackaged;
@@ -366,6 +370,9 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    if (apiServer) {
+      apiServer.close();
+    }
     app.quit()
   }
 })

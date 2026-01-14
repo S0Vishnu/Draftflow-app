@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@dicebear/core": "^9.2.4",
+    "adm-zip": "^0.5.16",
     "chokidar": "^3.6.0",
     "keytar": "^7.9.0"
   },
