@@ -239,8 +239,21 @@ const Home = () => {
 
             setFiles(processed);
             setCurrentPath(path);
-            setSelectedPaths(new Set());
-            setLastSelectedPath(null);
+            
+            // Preserve selection if paths still exist in the new directory listing
+            setSelectedPaths(prev => {
+                const nextSelection = new Set<string>();
+                prev.forEach(p => {
+                    if (processed.some(f => f.path === p)) {
+                        nextSelection.add(p);
+                    }
+                });
+                return nextSelection;
+            });
+            
+            // Note: lastSelectedPath is still useful even if it might not be in the current filtered view, 
+            // but we keep it to maintain shift-selection context.
+            
             setIsCreating(null);
         } catch (error: any) {
             console.error("Failed to load directory", error);
@@ -538,6 +551,17 @@ const Home = () => {
 
     const handleRenameSubmit = async () => {
         if (!renamingFile || !currentPath || !renameValue) return;
+        
+        // Check for duplicate name
+        const hasDuplicate = files.some(
+            f => (f.name.toLowerCase() === renameValue.toLowerCase()) && (f.path !== renamingFile)
+        );
+
+        if (hasDuplicate) {
+            toast.warn(`"${renameValue}" already exists in this location.`);
+            return;
+        }
+
         const newPath = `${currentPath}/${renameValue}`;
         const success = await window.api.renameEntry(renamingFile, newPath);
         if (success) {
@@ -861,6 +885,16 @@ const Home = () => {
                                     onCreationChange={setCreationName}
                                     onCreationSubmit={submitCreation}
                                     onCreationCancel={cancelCreation}
+                                    onVersionClick={(e, file) => {
+                                        // Ensure file is selected
+                                        if (!selectedPaths.has(file.path)) {
+                                            handleSelectFile(e, file);
+                                        }
+                                        // Force open inspector
+                                        setPreviewOpen(true);
+                                        // Ideally, switch to 'versions' tab, but Inspector manages its own state. 
+                                        // We'll just open it for now.
+                                    }}
                                 />
 
                                 {isSelecting && selectionBox && (
@@ -891,6 +925,7 @@ const Home = () => {
                         file={activeFile}
                         projectRoot={rootDir || currentPath || ''}
                         onClose={handleInspectorClose}
+                        onRefresh={refreshDirectory}
                     />
                 )}
             </div>

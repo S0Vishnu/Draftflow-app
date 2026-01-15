@@ -467,6 +467,10 @@ export class DraftControlSystem {
       }
       // @ts-ignore
       manifests[i].totalSize = totalSize;
+
+      // Mark if this is the current checked out version
+      // @ts-ignore
+      manifests[i].isCurrent = (index && index.currentHead === manifests[i].id);
     }
 
     // Sort by timestamp descending (newest first) for UI
@@ -476,22 +480,30 @@ export class DraftControlSystem {
   }
 
   /**
-   * Get the latest version number for a specific file.
+   * Get the current version number for a specific file (based on currentHead).
    */
   async getLatestVersionForFile(relativePath: string): Promise<string | null> {
+    const index = await this.readIndex();
+    if (!index.currentHead) return null;
+
     const history = await this.getHistory();
-    // Normalize path just in case
     const target = relativePath.replace(/\\/g, '/');
 
-    // Count how many versions contain this file
-    let count = 0;
-    for (const manifest of history) {
-      if (manifest.files[target]) {
-        count++;
-      }
+    // Find the current head version
+    const currentVersion = history.find(m => m.id === index.currentHead);
+    if (!currentVersion) return null;
+
+    // Check if the current version contains this file
+    const hasFile = Object.keys(currentVersion.files).some(
+      k => k.replace(/\\/g, '/') === target
+    );
+
+    if (hasFile) {
+      // Return the version number of the current head
+      return currentVersion.versionNumber || null;
     }
 
-    return count > 0 ? count.toString() : null;
+    return null;
   }
 
   /**

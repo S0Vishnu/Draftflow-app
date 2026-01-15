@@ -454,3 +454,21 @@
     text-overflow: ellipsis;
     z-index: 1;
 }
+
+/* Animation for new version entry */
+@keyframes slideInFromForm {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.version-slide-in {
+    animation: slideInFromForm 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    position: relative;
+    z-index: 10;
+}

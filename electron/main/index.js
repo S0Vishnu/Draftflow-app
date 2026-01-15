@@ -418,6 +418,11 @@ app.whenReady().then(() => {
       }, 500);
       return true;
     });
+  } else {
+    // Dev mode: Register no-op handlers to prevent IPC errors
+    ipcMain.handle('update:check', () => null);
+    ipcMain.handle('update:download', () => null);
+    ipcMain.handle('update:install', () => null);
   }
 })
 

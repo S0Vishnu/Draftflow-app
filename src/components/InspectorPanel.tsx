@@ -6,6 +6,8 @@ import {
 import { FileEntry } from './FileItem';
 import '../styles/InspectorPanel.css';
 import ConfirmDialog from './ConfirmDialog';
+import TaskCheckbox from './TaskCheckbox';
+import { toast } from 'react-toastify';
 
 interface InspectorPanelProps {
     file: FileEntry | null;
@@ -13,6 +15,7 @@ interface InspectorPanelProps {
     onClose: () => void;
     onRename?: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
+    onRefresh?: () => void;
 }
 
 type Tab = 'info' | 'tasks' | 'versions' | 'attachments';
@@ -35,7 +38,7 @@ interface AttachmentItem {
     createdAt: number;
 }
 
-const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onClose }) => {
+const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onClose, onRefresh }) => {
     const [activeTab, setActiveTab] = useState<Tab>('versions');
     const [width, setWidth] = useState(420);
     const [isResizing, setIsResizing] = useState(false);
@@ -53,6 +56,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     const [isCreating, setIsCreating] = useState(false);
     const [versionLabel, setVersionLabel] = useState('');
     const [loading, setLoading] = useState(false);
+    const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
     // Confirm Dialog State
     const [confirmState, setConfirmState] = useState({
@@ -233,35 +237,54 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
 
             console.log('📦 Creating version for:', filesToVersion);
 
+            // Check for duplicates
+            if (history.some(v => v.label.toLowerCase() === versionLabel.trim().toLowerCase())) {
+                toast.warn('A version with this name already exists.');
+                setLoading(false);
+                return;
+            }
+
             // @ts-ignore
-            await window.api.draft.commit(projectRoot, versionLabel, filesToVersion);
-            setVersionLabel('');
-            setIsCreating(false);
+            const result = await window.api.draft.commit(projectRoot, versionLabel, filesToVersion);
+            
+            if (result && result.success) {
+                setJustCreatedId(result.versionId);
+                setVersionLabel('');
+                setIsCreating(false);
 
-            // Refresh the history
-            // @ts-ignore
-            const fullHistory = await window.api.draft.getHistory(projectRoot);
+                // Clear animation highlight after 2s
+                setTimeout(() => setJustCreatedId(null), 2000);
 
-            // Filter to only show versions for the current file
-            const relPath = getRelativePath();
-            if (relPath) {
-                const filtered = fullHistory.filter(ver => {
-                    const normRelPath = relPath.replace(/\\/g, '/');
+                // Refresh the history
+                // @ts-ignore
+                const fullHistory = await window.api.draft.getHistory(projectRoot);
 
-                    if (file.isDirectory) {
-                        return Object.keys(ver.files).some(k => {
-                            const normKey = k.replace(/\\/g, '/');
-                            return normKey === normRelPath || normKey.startsWith(normRelPath + '/');
-                        });
-                    } else {
-                        if (ver.files[relPath]) return true;
-                        const versionFileKeys = Object.keys(ver.files).map(k => k.replace(/\\/g, '/'));
-                        return versionFileKeys.includes(normRelPath);
-                    }
-                });
-                setHistory(filtered);
+                // Filter to only show versions for the current file
+                const relPath = getRelativePath();
+                if (relPath) {
+                    const filtered = fullHistory.filter(ver => {
+                        const normRelPath = relPath.replace(/\\/g, '/');
+
+                        if (file.isDirectory) {
+                            return Object.keys(ver.files).some(k => {
+                                const normKey = k.replace(/\\/g, '/');
+                                return normKey === normRelPath || normKey.startsWith(normRelPath + '/');
+                            });
+                        } else {
+                            if (ver.files[relPath]) return true;
+                            const versionFileKeys = Object.keys(ver.files).map(k => k.replace(/\\/g, '/'));
+                            return versionFileKeys.includes(normRelPath);
+                        }
+                    });
+                    setHistory(filtered);
+                } else {
+                    setHistory([]);
+                }
+                
+                if (onRefresh) onRefresh();
             } else {
-                setHistory([]);
+                console.error("Commit failed:", result?.error);
+                toast.error("Failed to create version: " + (result?.error || "Unknown error"));
             }
         } catch (e) {
             console.error(e);
@@ -279,7 +302,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             onConfirm: async () => {
                 // @ts-ignore
                 await window.api.draft.restore(projectRoot, vId);
-                window.location.reload();
+                if (onRefresh) onRefresh();
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
             }
         });
@@ -356,6 +379,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                 } else {
                     setHistory([]);
                 }
+                if (onRefresh) onRefresh();
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
             }
         });
@@ -401,6 +425,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                     } else {
                         setHistory([]);
                     }
+                    if (onRefresh) onRefresh();
 
                     alert(`Successfully deleted ${versionsToDelete.length} version(s).`);
                 } catch (e) {
@@ -554,12 +579,10 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                             {todos.length === 0 && <div className="text-muted" style={{ textAlign: 'center', fontSize: 13 }}>No tasks yet.</div>}
                             {todos.map(todo => (
                                 <div key={todo.id} className="task-item" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: '#1a1b20', padding: 8, borderRadius: 6 }}>
-                                    <button
-                                        onClick={() => toggleTodo(todo.id)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: todo.completed ? '#4a5db5' : '#666', padding: 0 }}
-                                    >
-                                        {todo.completed ? <CheckSquare size={18} /> : <div style={{ width: 16, height: 16, border: '2px solid #666', borderRadius: 3 }}></div>}
-                                    </button>
+                                    <TaskCheckbox 
+                                        checked={todo.completed} 
+                                        onChange={() => toggleTodo(todo.id)} 
+                                    />
                                     <span style={{ flex: 1, textDecoration: todo.completed ? 'line-through' : 'none', color: todo.completed ? '#666' : '#eee', fontSize: 13 }}>
                                         {todo.text}
                                     </span>
@@ -597,10 +620,10 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                             </div>
                         )}
                         {history.map((ver, idx) => (
-                            <div key={idx} className={`version-item ${idx === 0 ? 'active' : ''}`}>
+                            <div key={idx} className={`version-item ${ver.isCurrent ? 'active' : ''} ${ver.id === justCreatedId ? 'version-slide-in' : ''}`}>
                                 <div className="version-left">
                                     <div className="version-badge" title={`ID: ${ver.id}`}>
-                                        {idx === 0 && <GitBranch size={12} style={{ marginRight: 6 }} />}
+                                        {ver.isCurrent && <GitBranch size={12} style={{ marginRight: 6 }} />}
                                         v{history.length - idx}
                                     </div>
                                 </div>
@@ -611,7 +634,16 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                                             year: 'numeric', month: 'short', day: 'numeric',
                                             hour: '2-digit', minute: '2-digit'
                                         })}</span>
-                                        <span>{Object.keys(ver.files).length} files • {formatSize(ver.totalSize || 0)}</span>
+                                        <span>
+                                            {Object.keys(ver.files).length} files • {formatSize(ver.totalSize || 0)}
+                                            {ver.parentId && (() => {
+                                                const parentIdx = history.findIndex(h => h.id === ver.parentId);
+                                                if (parentIdx !== -1) {
+                                                    return <span style={{ marginLeft: 8, color: '#5a6dc5', fontSize: 11 }}>↳ from v{history.length - parentIdx}</span>;
+                                                }
+                                                return null;
+                                            })()}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="version-actions-right">
