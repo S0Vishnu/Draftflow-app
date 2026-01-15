@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 import { FileEntry } from './FileItem';
 import '../styles/InspectorPanel.css';
+import '../styles/InspectorPanel.css';
 import ConfirmDialog from './ConfirmDialog';
+import TodoList, { TodoItem, Priority } from './TodoList';
 
 interface InspectorPanelProps {
     file: FileEntry | null;
@@ -20,12 +22,6 @@ type Tab = 'info' | 'tasks' | 'versions' | 'attachments';
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 800;
 
-interface TodoItem {
-    id: string;
-    text: string;
-    completed: boolean;
-    createdAt: number;
-}
 
 interface AttachmentItem {
     id: string;
@@ -43,7 +39,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
 
     // Tasks & Attachments State
     const [todos, setTodos] = useState<TodoItem[]>([]);
-    const [newTodo, setNewTodo] = useState('');
+
     const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -438,16 +434,16 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     };
 
     // Todo Logic
-    const addTodo = () => {
-        if (!newTodo.trim()) return;
+    const handleAddTodo = (text: string, priority: Priority, tags: string[]) => {
         const item: TodoItem = {
             id: Date.now().toString(),
-            text: newTodo.trim(),
+            text: text.trim(),
             completed: false,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            priority,
+            tags
         };
         saveTodos([...todos, item]);
-        setNewTodo('');
     };
 
     const toggleTodo = (id: string) => {
@@ -561,40 +557,12 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                 );
             case 'tasks':
                 return (
-                    <div className="tasks-container" style={{ padding: 20 }}>
-                        <div className="add-task-row" style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                            <input
-                                type="text"
-                                className="creation-input"
-                                placeholder="Add a new task..."
-                                value={newTodo}
-                                onChange={e => setNewTodo(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && addTodo()}
-                                style={{ marginBottom: 0 }}
-                            />
-                            <button className="btn-commit" onClick={addTodo}><Plus size={16} /></button>
-                        </div>
-
-                        <div className="tasks-list">
-                            {todos.length === 0 && <div className="text-muted" style={{ textAlign: 'center', fontSize: 13 }}>No tasks yet.</div>}
-                            {todos.map(todo => (
-                                <div key={todo.id} className="task-item" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: '#1a1b20', padding: 8, borderRadius: 6 }}>
-                                    <button
-                                        onClick={() => toggleTodo(todo.id)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: todo.completed ? '#4a5db5' : '#666', padding: 0 }}
-                                    >
-                                        {todo.completed ? <CheckSquare size={18} /> : <div style={{ width: 16, height: 16, border: '2px solid #666', borderRadius: 3 }}></div>}
-                                    </button>
-                                    <span style={{ flex: 1, textDecoration: todo.completed ? 'line-through' : 'none', color: todo.completed ? '#666' : '#eee', fontSize: 13 }}>
-                                        {todo.text}
-                                    </span>
-                                    <button onClick={() => deleteTodo(todo.id)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 4 }} className="task-delete-btn">
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <TodoList
+                        todos={todos}
+                        onAdd={handleAddTodo}
+                        onToggle={toggleTodo}
+                        onDelete={deleteTodo}
+                    />
                 );
             case 'versions':
                 return (
