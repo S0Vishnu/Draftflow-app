@@ -418,6 +418,22 @@ app.whenReady().then(() => {
       }, 500);
       return true;
     });
+  } else {
+    // Development mode: Register stub handlers to prevent "No handler registered" errors
+    ipcMain.handle('update:check', () => {
+      console.log('[Dev Mode] Update check skipped');
+      return null;
+    });
+
+    ipcMain.handle('update:download', () => {
+      console.log('[Dev Mode] Update download skipped');
+      return null;
+    });
+
+    ipcMain.handle('update:install', () => {
+      console.log('[Dev Mode] Update install skipped');
+      return false;
+    });
   }
 })
 
