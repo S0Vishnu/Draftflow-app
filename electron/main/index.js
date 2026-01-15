@@ -588,6 +588,16 @@ ipcMain.handle('draft:getFileVersion', async (_, { projectRoot, relativePath }) 
   }
 });
 
+ipcMain.handle('draft:getCurrentHead', async (_, projectRoot) => {
+  try {
+    const dcs = new DraftControlSystem(projectRoot);
+    return await dcs.getCurrentHead();
+  } catch (e) {
+    console.error('Draft Get Current Head Failed:', e);
+    return null;
+  }
+});
+
 ipcMain.handle('addon:download', async () => {
   const { dialog } = await import('electron');
   const path = await import('path');

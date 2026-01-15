@@ -53,6 +53,12 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     const [isCreating, setIsCreating] = useState(false);
     const [versionLabel, setVersionLabel] = useState('');
     const [loading, setLoading] = useState(false);
+    const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+
+    // Reset active version when file changes
+    useEffect(() => {
+        setActiveVersionId(null);
+    }, [file?.path]);
 
     // Confirm Dialog State
     const [confirmState, setConfirmState] = useState({
@@ -167,8 +173,12 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
     // Versions
     useEffect(() => {
         if (activeTab === 'versions' && projectRoot && file) {
-            // @ts-ignore
-            window.api.draft.getHistory(projectRoot).then((fullHistory: any[]) => {
+            const loadVersions = async () => {
+                // @ts-ignore
+                const fullHistory: any[] = await window.api.draft.getHistory(projectRoot);
+                // @ts-ignore
+                const currentHead: string | null = await window.api.draft.getCurrentHead(projectRoot);
+
                 const relPath = getRelativePath();
 
                 if (!relPath) {
@@ -193,8 +203,18 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                     }
                 });
 
+                // Only set active version if not already set (e.g. on first load)
+                if (!activeVersionId) {
+                    if (currentHead && filtered.some(v => v.id === currentHead)) {
+                        setActiveVersionId(currentHead);
+                    } else if (filtered.length > 0) {
+                        setActiveVersionId(filtered[0].id);
+                    }
+                }
                 setHistory(filtered);
-            });
+            };
+
+            loadVersions();
         } else {
             // Clear history if no file is selected or not on versions tab
             setHistory([]);
@@ -234,7 +254,11 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             console.log('📦 Creating version for:', filesToVersion);
 
             // @ts-ignore
-            await window.api.draft.commit(projectRoot, versionLabel, filesToVersion);
+            const result = await window.api.draft.commit(projectRoot, versionLabel, filesToVersion);
+            if (result && result.success && result.versionId) {
+                setActiveVersionId(result.versionId);
+            }
+
             setVersionLabel('');
             setIsCreating(false);
 
@@ -279,7 +303,8 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             onConfirm: async () => {
                 // @ts-ignore
                 await window.api.draft.restore(projectRoot, vId);
-                window.location.reload();
+                setActiveVersionId(vId);
+                // window.location.reload();
                 setConfirmState(prev => ({ ...prev, isOpen: false }));
             }
         });
@@ -597,7 +622,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                             </div>
                         )}
                         {history.map((ver, idx) => (
-                            <div key={idx} className={`version-item ${idx === 0 ? 'active' : ''}`}>
+                            <div key={idx} className={`version-item ${ver.id === activeVersionId ? 'active' : ''}`}>
                                 <div className="version-left">
                                     <div className="version-badge" title={`ID: ${ver.id}`}>
                                         {idx === 0 && <GitBranch size={12} style={{ marginRight: 6 }} />}

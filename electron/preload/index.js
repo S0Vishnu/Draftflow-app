@@ -32,7 +32,8 @@ const api = {
     saveAttachment: (projectRoot, filePath) => electronAPI.ipcRenderer.invoke('draft:saveAttachment', { projectRoot, filePath }),
     saveMetadata: (projectRoot, relativePath, metadata) => electronAPI.ipcRenderer.invoke('draft:saveMetadata', { projectRoot, relativePath, metadata }),
     getMetadata: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getMetadata', { projectRoot, relativePath }),
-    getFileVersion: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getFileVersion', { projectRoot, relativePath })
+    getFileVersion: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getFileVersion', { projectRoot, relativePath }),
+    getCurrentHead: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:getCurrentHead', projectRoot)
   },
   auth: {
     login: () => electronAPI.ipcRenderer.invoke('auth:login'),

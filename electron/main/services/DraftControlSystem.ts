@@ -411,6 +411,14 @@ export class DraftControlSystem {
   }
 
   /**
+   * Get the current head version ID.
+   */
+  async getCurrentHead(): Promise<string | null> {
+    const index = await this.readIndex();
+    return index.currentHead;
+  }
+
+  /**
    * Get history of versions.
    */
   async getHistory(filterFile?: string): Promise<VersionManifest[]> {
