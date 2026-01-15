@@ -120,7 +120,7 @@ const Login = () => {
             <div className="glow"></div>
             <div className="login-card">
                 <div className="brand-header">
-                    <img src={logoFull} alt="DRAFTFLOW" className="brand-logo-img" />
+                    <img src={logoFull} alt="DRAFTWOLF" className="brand-logo-img" />
                 </div>
 
                 <p className="login-subtitle">Log In or Register with your email.</p>

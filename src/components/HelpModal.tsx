@@ -26,7 +26,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         <div className="help-modal-overlay" onClick={onClose}>
             <div className="help-modal-dialog" onClick={e => e.stopPropagation()} ref={dialogRef}>
                 <div className="help-modal-header">
-                    <h2 className="help-modal-title">About Draftflow</h2>
+                    <h2 className="help-modal-title">About Draftwolf</h2>
                     <button className="help-modal-close" onClick={onClose}>
                         <X size={20} />
                     </button>
@@ -35,7 +35,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                 <div className="help-modal-content">
                     <div className="help-section intro">
                         <div className="app-logo">
-                            <img src={logo} alt="Draftflow Logo" className="logo-image" />
+                            <img src={logo} alt="Draftwolf Logo" className="logo-image" />
                         </div>
                         <p className="version">Version 1.0.0</p>
                     </div>
@@ -106,7 +106,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                     <div className="help-section credits">
                         <h4>Credits</h4>
                         <p className="help-modal-footer">
-                            <a className="footer-link" href="https://github.com/S0Vishnu/Draftflow-app/issues">For Issues & Feedback <ExternalLinkIcon size={12} /></a>
+                            <a className="footer-link" href="https://github.com/S0Vishnu/Draftwolf-app/issues">For Issues & Feedback <ExternalLinkIcon size={12} /></a>
                         </p>
                         <span className="with-love">Made with <Heart size={14} className="heart-icon" /> for builders</span>
                     </div>

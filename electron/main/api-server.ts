@@ -124,7 +124,7 @@ export function startApiServer() {
     });
 
     server.listen(PORT, '127.0.0.1', () => {
-        console.log(`DraftFlow API Server running on port ${PORT}`);
+        console.log(`DraftWolf API Server running on port ${PORT}`);
     });
 
     return server;

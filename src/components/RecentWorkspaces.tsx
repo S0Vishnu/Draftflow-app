@@ -29,7 +29,7 @@ const RecentWorkspaces: React.FC<RecentWorkspacesProps> = ({
     return (
         <div className="recent-workspaces-container">
             <div className="welcome-header">
-                <h1 className="app-title">DraftFlow</h1>
+                <h1 className="app-title">DraftWolf</h1>
                 <p className="welcome-subtitle">
                     Welcome back. Open a recent workspace or start a new project to get started.
                 </p>

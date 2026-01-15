@@ -1,7 +1,7 @@
-# DraftFlow 🌪️
+# DraftWolf 🌪️
 ### *Because "final_final_v2.docx" is a lie we tell ourselves.*
 
-Welcome to **DraftFlow**, the desktop application that understands your commitment issues with file versions. Built with the holy trinity of **React**, **TypeScript**, and **Electron**, this tool is designed to save you from yourself.
+Welcome to **DraftWolf**, the desktop application that understands your commitment issues with file versions. Built with the holy trinity of **React**, **TypeScript**, and **Electron**, this tool is designed to save you from yourself.
 
 ## 🤔 Why purely? Why does this exist?
 

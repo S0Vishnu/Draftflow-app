@@ -123,7 +123,7 @@ const OTPVerification = () => {
 
 
                 <div className="brand-header">
-                    <img src={logoFull} alt="DRAFTFLOW" className="brand-logo-img" />
+                    <img src={logoFull} alt="DRAFTWOLF" className="brand-logo-img" />
                 </div>
 
                 <h2 style={{ color: 'white', margin: '0 0 10px 0', fontSize: '20px', fontWeight: '600' }}>Check your email</h2>

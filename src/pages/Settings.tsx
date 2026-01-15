@@ -491,7 +491,7 @@ const Settings = () => {
                             onClick={handleSignOut}
                         >
                             <LogOut size={18} />
-                            Sign Out of Draftflow as {user?.email}
+                            Sign Out of Draftwolf as {user?.email}
                         </button>
                     </div>
                 </main >

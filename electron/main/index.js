@@ -576,9 +576,9 @@ ipcMain.handle('addon:download', async () => {
 
   let sourcePath;
   if (app.isPackaged) {
-    sourcePath = path.join(process.resourcesPath, 'aadons', 'draftflow_addon.py');
+    sourcePath = path.join(process.resourcesPath, 'aadons', 'draftwolf_addon.py');
   } else {
-    sourcePath = path.join(__dirname, '../../aadons/draftflow_addon.py');
+    sourcePath = path.join(__dirname, '../../aadons/draftwolf_addon.py');
   }
 
   // Check if file exists
@@ -591,7 +591,7 @@ ipcMain.handle('addon:download', async () => {
 
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Blender Addon',
-    defaultPath: 'draftflow_addon.zip',
+    defaultPath: 'draftwolf_addon.zip',
     filters: [{ name: 'Zip Archive', extensions: ['zip'] }]
   });
 

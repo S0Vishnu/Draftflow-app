@@ -1,10 +1,10 @@
 bl_info = {
-    "name": "DraftFlow Control",
-    "author": "DraftFlow",
+    "name": "DraftWolf Control",
+    "author": "DraftWolf",
     "version": (1, 0),
     "blender": (2, 80, 0),
-    "location": "View3D > Sidebar > DraftFlow",
-    "description": "Version control for Blender with DraftFlow",
+    "location": "View3D > Sidebar > DraftWolf",
+    "description": "Version control for Blender with DraftWolf",
     "category": "Development",
 }
 
@@ -26,7 +26,7 @@ def send_request(endpoint, data=None):
     url = f"{API_URL}{endpoint}"
     req = urllib.request.Request(url)
     req.add_header('Content-Type', 'application/json')
-    req.add_header('User-Agent', 'DraftFlow-Blender/1.0')
+    req.add_header('User-Agent', 'DraftWolf-Blender/1.0')
     
     if data:
         jsondata = json.dumps(data).encode('utf-8')
@@ -36,14 +36,14 @@ def send_request(endpoint, data=None):
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
-        print(f"DraftFlow API Error: {e.code}")
+        print(f"DraftWolf API Error: {e.code}")
         try:
             err_body = e.read().decode('utf-8')
             return json.loads(err_body)
         except:
             return {'success': False, 'error': f"HTTP {e.code}"}
     except (urllib.error.URLError, TimeoutError) as e:
-        print(f"DraftFlow Connection Error: {e}")
+        print(f"DraftWolf Connection Error: {e}")
         return {'success': False, 'error': str(e)}
 
 def get_project_root(filepath):
@@ -60,8 +60,8 @@ class SafeVersionList:
 # --- Operators ---
 
 class OBJECT_OT_DfCommit(bpy.types.Operator):
-    """Save a new version to DraftFlow"""
-    bl_idname = "draftflow.commit"
+    """Save a new version to DraftWolf"""
+    bl_idname = "draftwolf.commit"
     bl_label = "Save Version"
     bl_options = {'REGISTER', 'UNDO'}
     
@@ -78,7 +78,7 @@ class OBJECT_OT_DfCommit(bpy.types.Operator):
         
         root = get_project_root(filepath)
         if not root:
-            self.report({'ERROR'}, "DraftFlow project not found. Initialize it in the App.")
+            self.report({'ERROR'}, "DraftWolf project not found. Initialize it in the App.")
             return {'CANCELLED'}
             
         res = send_request('/draft/commit', {
@@ -101,7 +101,7 @@ class OBJECT_OT_DfCommit(bpy.types.Operator):
 
 class OBJECT_OT_DfRetrieve(bpy.types.Operator):
     """Retrieve a previous version and open it"""
-    bl_idname = "draftflow.retrieve"
+    bl_idname = "draftwolf.retrieve"
     bl_label = "Retrieve Version"
     bl_options = {'REGISTER'}
     
@@ -222,7 +222,7 @@ class OBJECT_OT_DfRetrieve(bpy.types.Operator):
             
         root = get_project_root(filepath)
         if not root:
-            self.report({'ERROR'}, "DraftFlow project not found.")
+            self.report({'ERROR'}, "DraftWolf project not found.")
             return {'CANCELLED'}
             
         rel_path = None
@@ -275,7 +275,7 @@ class OBJECT_OT_DfRetrieve(bpy.types.Operator):
         history = send_request('/draft/history', {'projectRoot': root})
         
         if history is None:
-             self.report({'ERROR'}, "Could not connect to DraftFlow App.")
+             self.report({'ERROR'}, "Could not connect to DraftWolf App.")
              return {'CANCELLED'}
              
         if not history:
@@ -347,8 +347,8 @@ class OBJECT_OT_DfRetrieve(bpy.types.Operator):
 
 
 class OBJECT_OT_DfInit(bpy.types.Operator):
-    """Initialize DraftFlow in this directory"""
-    bl_idname = "draftflow.init"
+    """Initialize DraftWolf in this directory"""
+    bl_idname = "draftwolf.init"
     bl_label = "Initialize Project"
     bl_options = {'REGISTER'}
 
@@ -371,9 +371,9 @@ class OBJECT_OT_DfInit(bpy.types.Operator):
 
 
 class OBJECT_OT_DfOpenApp(bpy.types.Operator):
-    """Open or Link to the DraftFlow App"""
-    bl_idname = "draftflow.open_app"
-    bl_label = "Open DraftFlow"
+    """Open or Link to the DraftWolf App"""
+    bl_idname = "draftwolf.open_app"
+    bl_label = "Open DraftWolf"
 
     def execute(self, context):
         try:
@@ -402,11 +402,11 @@ class OBJECT_OT_DfOpenApp(bpy.types.Operator):
 # --- Panel ---
 
 class DF_PT_MainPanel(bpy.types.Panel):
-    bl_label = "DraftFlow"
+    bl_label = "DraftWolf"
     bl_idname = "DF_PT_MainPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'DraftFlow'
+    bl_category = 'DraftWolf'
 
     def draw(self, context):
         layout = self.layout
@@ -416,21 +416,21 @@ class DF_PT_MainPanel(bpy.types.Panel):
         layout.label(text="Version Control")
         row = layout.row(align=True)
         row.scale_y = 1.5
-        row.operator("draftflow.commit", icon="CHECKMARK")
+        row.operator("draftwolf.commit", icon="CHECKMARK")
         
         layout.separator()
         
         row = layout.row(align=True)
         row.scale_y = 1.2
-        row.operator("draftflow.retrieve", icon="FILE_REFRESH")
+        row.operator("draftwolf.retrieve", icon="FILE_REFRESH")
         
         layout.separator()
         layout.label(text="Setup")
-        layout.operator("draftflow.init", icon="FILE_NEW")
+        layout.operator("draftwolf.init", icon="FILE_NEW")
         
         layout.separator()
         layout.label(text="Application")
-        layout.operator("draftflow.open_app", icon="WINDOW")
+        layout.operator("draftwolf.open_app", icon="WINDOW")
 
 
 # --- Registration ---

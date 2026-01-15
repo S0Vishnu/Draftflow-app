@@ -2,7 +2,7 @@ import { app, ipcMain, shell, safeStorage } from 'electron';
 import keytar from 'keytar';
 import { EventEmitter } from 'events';
 
-const SERVICE_NAME = 'DraftFlow-Auth';
+const SERVICE_NAME = 'DraftWolf-Auth';
 const ACCOUNT_NAME = 'firebase_id_token'; // Single user for now, or use dynamic
 const DATE_KEY = 'token_date';
 

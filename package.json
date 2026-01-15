@@ -1,5 +1,5 @@
 {
-  "name": "draftflow",
+  "name": "draftwolf",
   "version": "1.1.2",
   "description": "A modern client application built with React, TypeScript, and Vite, with optional Electron support.",
   "main": "./out/main/index.js",
@@ -20,8 +20,8 @@
     "typecheck": "tsc --noEmit"
   },
   "build": {
-    "appId": "com.draftflow.app",
-    "productName": "DraftFlow",
+    "appId": "com.draftwolf.app",
+    "productName": "DraftWolf",
     "directories": {
       "output": "dist"
     },
@@ -45,12 +45,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "DraftFlow",
+      "shortcutName": "DraftWolf",
       "artifactName": "${productName} ${version}.${ext}"
     },
     "protocols": [
       {
-        "name": "DraftFlow Auth",
+        "name": "DraftWolf Auth",
         "schemes": [
           "myapp"
         ]
@@ -60,7 +60,7 @@
       {
         "provider": "github",
         "owner": "S0Vishnu",
-        "repo": "Draftflow-app"
+        "repo": "Draftwolf"
       }
     ]
   },
