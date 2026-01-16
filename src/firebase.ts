@@ -17,25 +17,28 @@ const firebaseConfig = {
 import { Auth } from 'firebase/auth';
 
 import { Firestore, getFirestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 console.log('Initializing Firebase...');
 let app;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 let googleProvider: GoogleAuthProvider;
 
 try {
   // Debug log: Check partially masked key and length to verify correct loading
   console.log('API Key (partial):', firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 5)}... (len: ${firebaseConfig.apiKey.length})` : 'MISSING');
-  console.log('Project ID:', firebaseConfig.projectId); 
-  
+  console.log('Project ID:', firebaseConfig.projectId);
+
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app);
   googleProvider = new GoogleAuthProvider();
   console.log('Firebase Initialized successfully.');
 } catch (e) {
   console.error('Firebase Initialization Failed:', e);
 }
 
-export { auth, db, googleProvider };
+export { auth, db, googleProvider, storage };

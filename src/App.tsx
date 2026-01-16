@@ -8,6 +8,7 @@ import OTPVerification from './pages/OTPVerification';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
 import Cleanup from './pages/Cleanup';
+import Community from './pages/Community';
 import UpdateModal from './components/UpdateModal';
 
 
@@ -132,6 +133,7 @@ function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/cleanup" element={<Cleanup />} />
+          <Route path="/community" element={<Community />} />
         </Routes>
       </Router>
       <UpdateModal

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home as HomeIcon, Folder, Settings as SettingsIcon, User as UserIcon, FileText, Database } from 'lucide-react';
+import { Home as HomeIcon, Folder, Settings as SettingsIcon, User as UserIcon, FileText, Database, Users } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -65,6 +65,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, user, onOpenFolder, onGoHome,
                             <Folder size={22} />
                         </button>
                     )}
+
+                    <button
+                        className={`side-btn ${isActive('/community') ? 'active' : ''}`}
+                        onClick={() => navigate('/community')}
+                        title="Community"
+                    >
+                        <Users size={22} />
+                    </button>
                 </div>
                 <div className="sidebar-bottom">
                     <button
