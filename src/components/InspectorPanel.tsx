@@ -246,13 +246,10 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                     }
                 });
 
-                // Only set active version if not already set (e.g. on first load)
-                if (!activeVersionId) {
-                    if (currentHead && filtered.some(v => v.id === currentHead)) {
-                        setActiveVersionId(currentHead);
-                    } else if (filtered.length > 0) {
-                        setActiveVersionId(filtered[0].id);
-                    }
+                if (currentHead && filtered.some(v => v.id === currentHead)) {
+                    setActiveVersionId(currentHead);
+                } else if (filtered.length > 0) {
+                    setActiveVersionId(filtered[0].id);
                 }
                 setHistory(filtered);
             };
