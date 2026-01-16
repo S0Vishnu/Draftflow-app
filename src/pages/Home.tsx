@@ -77,6 +77,57 @@ const Home = () => {
         else localStorage.removeItem('rootDir');
     }, [rootDir]);
 
+    // Support Notification
+    useEffect(() => {
+        const hasShownSupport = sessionStorage.getItem('shown_support_toast');
+        if (!hasShownSupport) {
+            // Delay slightly so it doesn't pop up instantly with page load
+            const timer = setTimeout(() => {
+                toast.info(
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '15px' }}>Loving DraftWolf? 🐺</span>
+                        <span style={{ fontSize: '13px', opacity: 0.9 }}>Support our creator to continue doing a good job!</span>
+                        <a
+                            href="https://www.buymeacoffee.com/s0vishnu"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                alignSelf: 'flex-start',
+                                backgroundColor: '#FFDD00',
+                                color: 'black',
+                                padding: '6px 12px',
+                                borderRadius: '12px',
+                                fontWeight: 'bold',
+                                fontSize: '12px',
+                                textDecoration: 'none',
+                                marginTop: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                            }}
+                        >
+                            ☕ Buy a Coffee
+                        </a>
+                    </div>,
+                    {
+                        position: "bottom-right",
+                        autoClose: 15000,
+                        hideProgressBar: false,
+                        closeOnClick: false,
+                        pauseOnHover: true,
+                        draggable: true,
+                        progress: undefined,
+                        theme: "dark",
+                        icon: false
+                    }
+                );
+                sessionStorage.setItem('shown_support_toast', 'true');
+            }, 3000);
+
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
     // UIState
     const [viewMode, setViewMode] = useState<'list' | 'grid'>(() =>
         (localStorage.getItem('viewMode') as 'list' | 'grid') || 'grid'

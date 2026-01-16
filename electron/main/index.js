@@ -413,6 +413,8 @@ app.whenReady().then(() => {
 
     autoUpdater.on("error", (err) => {
       log.error("AutoUpdater Error:", err);
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) win.webContents.send("update:error", err.message || err.toString());
     });
 
     ipcMain.handle('update:check', () => {
@@ -445,7 +447,21 @@ app.whenReady().then(() => {
     });
 
     ipcMain.handle('update:download', () => {
-      console.log('[Dev Mode] Update download skipped');
+      console.log('[Dev Mode] Simulating update download...');
+      const win = BrowserWindow.getAllWindows()[0];
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 2;
+        if (win) {
+          win.webContents.send("update-progress", { percent: progress });
+        }
+        if (progress >= 100) {
+          clearInterval(interval);
+          if (win) {
+            win.webContents.send("update:downloaded", { version: '9.9.9' });
+          }
+        }
+      }, 100);
       return null;
     });
 

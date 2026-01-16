@@ -50,7 +50,10 @@ function App() {
     checkForUpdates();
 
     // Event Listeners
+
+    // Event Listeners
     if ((window as any).api?.updater) {
+      // ... existing handlers ...
       const cleanupAvailable = (window as any).api.updater.onAvailable((info: any) => {
         setUpdateState({
           isOpen: true,
@@ -77,6 +80,22 @@ function App() {
         }));
       });
 
+      if ((window as any).api.updater.onError) {
+        const cleanupError = (window as any).api.updater.onError((error: string) => {
+          alert(`Update Failed: ${error}`);
+          setUpdateState((prev: any) => ({ ...prev, isOpen: false, status: 'available' }));
+        });
+
+        // Add to cleanup chain
+        const originalCleanup = cleanupDownloaded;
+        return () => {
+          cleanupAvailable();
+          cleanupProgress();
+          originalCleanup(); // which was pointing to cleanDownloaded
+          cleanupError();
+        };
+      }
+
       return () => {
         cleanupAvailable();
         cleanupProgress();
@@ -85,9 +104,15 @@ function App() {
     }
   }, []);
 
-  const handleUpdate = () => {
-    (window as any).api.updater.download();
-    setUpdateState((prev: any) => ({ ...prev, status: 'downloading' }));
+  const handleUpdate = async () => {
+    try {
+      setUpdateState((prev: any) => ({ ...prev, status: 'downloading' }));
+      await (window as any).api.updater.download();
+    } catch (e: any) {
+      console.error("Download failed to start:", e);
+      alert(`Download Error: ${e.message}`);
+      setUpdateState((prev: any) => ({ ...prev, isOpen: false, status: 'available' }));
+    }
   };
 
   const handleIgnore = () => {

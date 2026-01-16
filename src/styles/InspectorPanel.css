@@ -174,9 +174,9 @@
     position: absolute;
     left: 28px;
     /* Center of the badge (approx) */
-    top: 32px;
+    top: 28px;
     /* Start below the badge */
-    bottom: -4px;
+    bottom: 0px;
     /* Extend to next badge */
     width: 2px;
     background-color: #2a2b36;

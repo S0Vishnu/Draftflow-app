@@ -64,6 +64,10 @@ const api = {
     onProgress: (callback) => {
       const sub = (_event, info) => callback(info);
       return electronAPI.ipcRenderer.on('update-progress', sub);
+    },
+    onError: (callback) => {
+      const sub = (_event, error) => callback(error);
+      return electronAPI.ipcRenderer.on('update:error', sub);
     }
   }
 }

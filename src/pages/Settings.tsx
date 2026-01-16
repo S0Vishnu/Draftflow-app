@@ -7,7 +7,7 @@ import { auth, db } from '../firebase';
 import Sidebar from '../components/Sidebar';
 import { createAvatar } from '@dicebear/core';
 import { lorelei } from '@dicebear/collection';
-import { Bell, Moon, LogOut, RefreshCw, User, Clock, Shield, Edit2, X, Check, Download } from 'lucide-react';
+import { Bell, Moon, LogOut, RefreshCw, User, Clock, Shield, Edit2, X, Check, Download, Coffee } from 'lucide-react';
 import { toast } from 'react-toastify';
 import '../styles/Settings.css';
 
@@ -248,98 +248,135 @@ const Settings = () => {
                     <div className="settings-grid">
 
                         {/* Left Column: Profile */}
-                        <div className="glass-panel">
-                            <div className="panel-header">
-                                <h2 className="panel-title">
-                                    <User size={24} className="text-accent" style={{ color: '#3b82f6' }} />
-                                    Profile Identity
-                                </h2>
-                                {!isEditing && (
-                                    <button
-                                        onClick={() => setIsEditing(true)}
-                                        className="btn-edit"
-                                    >
-                                        <Edit2 size={14} />
-                                        <span>Edit Profile</span>
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="profile-avatar-wrapper">
-                                <div className="avatar-ring">
-                                    <img src={avatarUrl} alt="Avatar" className="avatar-img" />
-                                    {isEditing && (
+                        <div className="settings-column">
+                            <div className="glass-panel">
+                                <div className="panel-header">
+                                    <h2 className="panel-title">
+                                        <User size={24} className="text-accent" style={{ color: '#3b82f6' }} />
+                                        Profile Identity
+                                    </h2>
+                                    {!isEditing && (
                                         <button
-                                            onClick={regenerateAvatar}
-                                            title="Regenerate Avatar"
-                                            className="btn-regenerate"
+                                            onClick={() => setIsEditing(true)}
+                                            className="btn-edit"
                                         >
-                                            <RefreshCw size={18} />
+                                            <Edit2 size={14} />
+                                            <span>Edit Profile</span>
                                         </button>
                                     )}
                                 </div>
+
+                                <div className="profile-avatar-wrapper">
+                                    <div className="avatar-ring">
+                                        <img src={avatarUrl} alt="Avatar" className="avatar-img" />
+                                        {isEditing && (
+                                            <button
+                                                onClick={regenerateAvatar}
+                                                title="Regenerate Avatar"
+                                                className="btn-regenerate"
+                                            >
+                                                <RefreshCw size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {isEditing ? (
+                                    <>
+                                        <div className="form-group">
+                                            <label className="form-label">Username</label>
+                                            <input
+                                                type="text"
+                                                value={displayName}
+                                                onChange={e => setDisplayName(e.target.value)}
+                                                placeholder="Enter your display name"
+                                                className="input-styled"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="form-label">Bio</label>
+                                            <textarea
+                                                value={settings.bio}
+                                                onChange={e => setSettings({ ...settings, bio: e.target.value })}
+                                                placeholder="Tell us a bit about yourself..."
+                                                rows={4}
+                                                className="input-styled"
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                            <button
+                                                onClick={cancelEdit}
+                                                className="btn-cancel"
+                                            >
+                                                <X size={18} /> Cancel
+                                            </button>
+                                            <button
+                                                onClick={saveProfile}
+                                                disabled={loading}
+                                                className="btn-save"
+                                            >
+                                                <Check size={18} /> {loading ? 'Saving...' : 'Save Profile'}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                            <h3 className="profile-name">{displayName || 'User'}</h3>
+                                            <p className="profile-bio">
+                                                {settings.bio || 'No bio provided yet.'}
+                                            </p>
+                                        </div>
+                                        <div className="profile-stats">
+                                            <div className="stat-box">
+                                                <div className="stat-num">0</div>
+                                                <div className="stat-label">Projects</div>
+                                            </div>
+                                            <div className="stat-box">
+                                                <div className="stat-num">Free</div>
+                                                <div className="stat-label">Plan</div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
-                            {isEditing ? (
-                                <>
-                                    <div className="form-group">
-                                        <label className="form-label">Username</label>
-                                        <input
-                                            type="text"
-                                            value={displayName}
-                                            onChange={e => setDisplayName(e.target.value)}
-                                            placeholder="Enter your display name"
-                                            className="input-styled"
-                                        />
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label className="form-label">Bio</label>
-                                        <textarea
-                                            value={settings.bio}
-                                            onChange={e => setSettings({ ...settings, bio: e.target.value })}
-                                            placeholder="Tell us a bit about yourself..."
-                                            rows={4}
-                                            className="input-styled"
-                                        />
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                        <button
-                                            onClick={cancelEdit}
-                                            className="btn-cancel"
-                                        >
-                                            <X size={18} /> Cancel
-                                        </button>
-                                        <button
-                                            onClick={saveProfile}
-                                            disabled={loading}
-                                            className="btn-save"
-                                        >
-                                            <Check size={18} /> {loading ? 'Saving...' : 'Save Profile'}
-                                        </button>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                        <h3 className="profile-name">{displayName || 'User'}</h3>
-                                        <p className="profile-bio">
-                                            {settings.bio || 'No bio provided yet.'}
-                                        </p>
-                                    </div>
-                                    <div className="profile-stats">
-                                        <div className="stat-box">
-                                            <div className="stat-num">0</div>
-                                            <div className="stat-label">Projects</div>
-                                        </div>
-                                        <div className="stat-box">
-                                            <div className="stat-num">Free</div>
-                                            <div className="stat-label">Plan</div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+                            <div className="glass-panel" style={{ marginTop: '1rem', textAlign: 'center', background: 'linear-gradient(145deg, rgba(255, 221, 0, 0.1), rgba(0,0,0,0))', border: '1px solid rgba(255, 221, 0, 0.2)' }}>
+                                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    <Coffee size={20} color="#FFDD00" />
+                                    Support Creator
+                                </h3>
+                                <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: '1rem', lineHeight: '1.4' }}>
+                                    Run on caffeine? So do I.<br />
+                                    Support the development of DraftWolf!
+                                </p>
+                                <a
+                                    href="https://www.buymeacoffee.com/s0vishnu"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        backgroundColor: '#FFDD00',
+                                        color: '#000000',
+                                        padding: '10px 24px',
+                                        borderRadius: '999px',
+                                        textDecoration: 'none',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                        transition: 'transform 0.2s',
+                                        boxShadow: '0 4px 12px rgba(255, 221, 0, 0.2)'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                >
+                                    <Coffee size={16} fill="black" />
+                                    Buy me a Coffee
+                                </a>
+                            </div>
                         </div>
 
                         {/* Right Column: Settings Stack */}
