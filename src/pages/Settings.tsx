@@ -53,6 +53,18 @@ const Settings = () => {
         setDisplayName(name);
         setInitialDisplayName(name);
 
+        // 1. Load from LocalStorage immediately for instant UI
+        const saved = localStorage.getItem(`user_settings_${user.uid}`);
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                setSettings({ ...defaultSettings, ...data });
+                setInitialSettings({ ...defaultSettings, ...data });
+            } catch (e) {
+                console.error("Failed to parse cached settings:", e);
+            }
+        }
+
         const loadSettings = async () => {
             try {
                 const docRef = doc(db, 'users', user.uid);
@@ -62,23 +74,17 @@ const Settings = () => {
                     const data = docSnap.data() as UserSettings;
                     setSettings(data);
                     setInitialSettings(data);
-                } else {
+                    // Update cache
+                    localStorage.setItem(`user_settings_${user.uid}`, JSON.stringify(data));
+                } else if (!saved) {
+                    // Only set defaults if we didn't populate from cache
                     const newSettings = { ...defaultSettings, avatarSeed: user.email || 'user' };
                     setSettings(newSettings);
                     setInitialSettings(newSettings);
                 }
             } catch (err) {
                 console.error("Failed to load settings from Firestore:", err);
-                const saved = localStorage.getItem(`user_settings_${user.uid}`);
-                if (saved) {
-                    const data = JSON.parse(saved);
-                    setSettings(data);
-                    setInitialSettings(data);
-                } else {
-                    const newSettings = { ...defaultSettings, avatarSeed: user.email || 'user' };
-                    setSettings(newSettings);
-                    setInitialSettings(newSettings);
-                }
+                // We already loaded from localStorage, so nothing more to do here unless we want to warn.
             }
         };
         loadSettings();
@@ -328,16 +334,6 @@ const Settings = () => {
                                             <p className="profile-bio">
                                                 {settings.bio || 'No bio provided yet.'}
                                             </p>
-                                        </div>
-                                        <div className="profile-stats">
-                                            <div className="stat-box">
-                                                <div className="stat-num">0</div>
-                                                <div className="stat-label">Projects</div>
-                                            </div>
-                                            <div className="stat-box">
-                                                <div className="stat-num">Free</div>
-                                                <div className="stat-label">Plan</div>
-                                            </div>
                                         </div>
                                     </>
                                 )}
