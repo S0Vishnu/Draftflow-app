@@ -388,7 +388,6 @@ app.whenReady().then(() => {
   })
 
   // Auto Updater
-  // Auto Updater
   if (!is.dev) {
     autoUpdater.autoDownload = false;
     autoUpdater.logger = log;

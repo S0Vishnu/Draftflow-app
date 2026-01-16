@@ -503,20 +503,34 @@ export class DraftControlSystem {
   /**
    * Get the latest version number for a specific file.
    */
+  /**
+   * Get the active version number for a specific file.
+   * Returns the version index (e.g. "4", "3") matching the Inspector Panel logic.
+   * If currentHead is current, returns the version number relative to history length.
+   */
   async getLatestVersionForFile(relativePath: string): Promise<string | null> {
-    const history = await this.getHistory();
-    // Normalize path just in case
-    const target = relativePath.replace(/\\/g, '/');
+    // 1. Get filtered history for this file (newest first)
+    const history = await this.getHistory(relativePath);
+    if (history.length === 0) return null;
 
-    // Count how many versions contain this file
-    let count = 0;
-    for (const manifest of history) {
-      if (manifest.files[target]) {
-        count++;
-      }
+    // 2. Get current head
+    const currentHead = await this.getCurrentHead();
+
+    // 3. Find if current head corresponds to one of these versions
+    let activeIdx = -1;
+
+    if (currentHead) {
+      activeIdx = history.findIndex(h => h.id === currentHead);
     }
 
-    return count > 0 ? count.toString() : null;
+    // 4. Calculate display version
+    // Logic matches InspectorPanel: v{HistoryLength - Index}
+    // If activeIdx is -1 (not found in history, e.g. new file or detached head not relevant to this file),
+    // we default to showing the Latest available version count (index 0 behavior).
+    const indexToUse = activeIdx === -1 ? 0 : activeIdx;
+    const versionNum = history.length - indexToUse;
+
+    return versionNum.toString();
   }
 
   /**

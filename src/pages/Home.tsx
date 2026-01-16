@@ -394,6 +394,13 @@ const Home = () => {
                 }
             }
         } else {
+            // Check if this file is already solely selected
+            if (selectedPaths.size === 1 && selectedPaths.has(file.path)) {
+                // If clicked again, we might want to ensure lastSelectedPath is set, but usually it is.
+                // Avoid state update to prevent InspectorPanel flicker/reset
+                if (lastSelectedPath !== file.path) setLastSelectedPath(file.path);
+                return;
+            }
             newSelection = new Set([file.path]);
             setLastSelectedPath(file.path);
         }
@@ -406,6 +413,12 @@ const Home = () => {
         if (!currentPath) return; // Disable box selection on start page
         if (e.button !== 0) return; // Only left click
         if (!contentRef.current) return;
+
+        // Check if we clicked on a file item
+        // This prevents starting a box selection or clearing selection when clicking a file
+        if ((e.target as HTMLElement).closest('.grid-card, .list-row')) {
+            return;
+        }
 
         // Clear selection if not Ctrl
         if (!e.ctrlKey) {
