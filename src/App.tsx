@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import OTPVerification from './pages/OTPVerification';
 import Home from './pages/Home';
 import Settings from './pages/Settings';
+import Cleanup from './pages/Cleanup';
 import UpdateModal from './components/UpdateModal';
 
 
@@ -105,6 +106,7 @@ function App() {
           <Route path="/verify" element={<OTPVerification />} />
           <Route path="/home" element={<Home />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/cleanup" element={<Cleanup />} />
         </Routes>
       </Router>
       <UpdateModal

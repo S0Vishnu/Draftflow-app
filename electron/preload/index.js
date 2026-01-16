@@ -25,7 +25,7 @@ const api = {
   draft: {
     init: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:init', projectRoot),
     commit: (projectRoot, label, files) => electronAPI.ipcRenderer.invoke('draft:commit', { projectRoot, label, files }),
-    getHistory: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:history', projectRoot),
+    getHistory: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:history', { projectRoot, relativePath }),
     restore: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:restore', { projectRoot, versionId }),
     delete: (projectRoot, versionId) => electronAPI.ipcRenderer.invoke('draft:delete', { projectRoot, versionId }),
     extract: (projectRoot, versionId, relativePath, destPath) => electronAPI.ipcRenderer.invoke('draft:extract', { projectRoot, versionId, relativePath, destPath }),
@@ -33,7 +33,8 @@ const api = {
     saveMetadata: (projectRoot, relativePath, metadata) => electronAPI.ipcRenderer.invoke('draft:saveMetadata', { projectRoot, relativePath, metadata }),
     getMetadata: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getMetadata', { projectRoot, relativePath }),
     getFileVersion: (projectRoot, relativePath) => electronAPI.ipcRenderer.invoke('draft:getFileVersion', { projectRoot, relativePath }),
-    getCurrentHead: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:getCurrentHead', projectRoot)
+    getCurrentHead: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:getCurrentHead', projectRoot),
+    getStorageReport: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:storageReport', projectRoot)
   },
   auth: {
     login: () => electronAPI.ipcRenderer.invoke('auth:login'),

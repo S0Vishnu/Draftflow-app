@@ -492,6 +492,26 @@ export class DraftControlSystem {
         const lowerTarget = target.toLowerCase();
         return Object.keys(m.files).some(k => this.normalizePath(k).toLowerCase() === lowerTarget);
       });
+
+      // Re-calculate size to reflect ONLY the filtered file
+      if (index && index.objects) {
+        for (const m of result) {
+          let specificSize = 0;
+          // Find the specific hash for the target file in this manifest
+          for (const [fPath, fHash] of Object.entries(m.files)) {
+            const norm = this.normalizePath(fPath);
+            if (norm === target || norm.toLowerCase() === target.toLowerCase()) {
+              if (index.objects[fHash]) {
+                specificSize = index.objects[fHash].size;
+              }
+              break;
+            }
+          }
+          // Overwrite totalSize with specific file size for UI clarity
+          // @ts-ignore
+          m.totalSize = specificSize;
+        }
+      }
     }
 
     // Sort by timestamp descending (newest first) for UI
@@ -617,5 +637,78 @@ export class DraftControlSystem {
     const tempFile = `${file}.tmp`;
     await fs.writeFile(tempFile, JSON.stringify(data, null, 2));
     await fs.rename(tempFile, file);
+  }
+  /**
+   * Get storage usage report.
+   */
+  async getStorageReport(): Promise<any> {
+    const history = await this.getHistory(); // already sorted newest first
+    const index = await this.readIndex();
+
+    const files: Record<string, {
+      path: string;
+      versionCount: number;
+      latestDate: string;
+      latestVersionId: string;
+      uniqueBlobs: Set<string>;
+    }> = {};
+
+    for (const v of history) {
+      for (const [filePath, hash] of Object.entries(v.files)) {
+        // Normalize path
+        const normPath = this.normalizePath(filePath);
+
+        // Filter out internal .draft files
+        if (normPath.startsWith('.draft/') || normPath === ('.draft')) continue;
+
+        if (!files[normPath]) {
+          files[normPath] = {
+            path: normPath,
+            versionCount: 0,
+            latestDate: v.timestamp, // First one seen is latest because of sort
+            latestVersionId: v.id,
+            uniqueBlobs: new Set()
+          };
+        }
+
+        files[normPath].versionCount++;
+        files[normPath].uniqueBlobs.add(hash);
+
+        // Update date if current v is newer (shouldn't be needed due to sort, but safety)
+        if (new Date(v.timestamp) > new Date(files[normPath].latestDate)) {
+          files[normPath].latestDate = v.timestamp;
+          files[normPath].latestVersionId = v.id;
+        }
+      }
+    }
+
+    // Calculate approx size per file (sum of its unique blobs)
+    // Note: Deduplication works across files too, so summing these might > totalSize.
+    const fileReports = Object.values(files).map(f => {
+      let size = 0;
+      f.uniqueBlobs.forEach(hash => {
+        if (index.objects[hash]) size += index.objects[hash].size;
+      });
+      return {
+        path: f.path,
+        versionCount: f.versionCount,
+        latestDate: f.latestDate,
+        totalHistorySize: size
+      };
+    });
+
+    // Total Object Storage Size
+    let totalSize = 0;
+    if (index.objects) {
+      for (const obj of Object.values(index.objects)) {
+        totalSize += obj.size;
+      }
+    }
+
+    return {
+      totalSize,
+      fileCount: fileReports.length,
+      files: fileReports.sort((a, b) => b.totalHistorySize - a.totalHistorySize)
+    };
   }
 }

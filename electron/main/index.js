@@ -532,10 +532,10 @@ ipcMain.handle('draft:commit', async (_, { projectRoot, label, files }) => {
   }
 });
 
-ipcMain.handle('draft:history', async (_, projectRoot) => {
+ipcMain.handle('draft:history', async (_, { projectRoot, relativePath }) => {
   try {
     const dcs = new DraftControlSystem(projectRoot);
-    const history = await dcs.getHistory();
+    const history = await dcs.getHistory(relativePath);
     return history;
   } catch (e) {
     console.error('Draft History Failed:', e);
@@ -593,6 +593,16 @@ ipcMain.handle('draft:getCurrentHead', async (_, projectRoot) => {
     return await dcs.getCurrentHead();
   } catch (e) {
     console.error('Draft Get Current Head Failed:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('draft:storageReport', async (_, projectRoot) => {
+  try {
+    const dcs = new DraftControlSystem(projectRoot);
+    return await dcs.getStorageReport();
+  } catch (e) {
+    console.error('Draft Storage Report Failed:', e);
     return null;
   }
 });
