@@ -423,7 +423,15 @@ const Home = () => {
 
     // Selection
     const handleSelectFile = (e: React.MouseEvent, file: FileEntry) => {
+        // Only handle left click
+        if (e.button !== 0) return;
+        
         e.stopPropagation();
+
+        // Prevent refresh if clicking the same file that is already selected
+        if (!e.ctrlKey && !e.shiftKey && selectedPaths.size === 1 && selectedPaths.has(file.path)) {
+            return;
+        }
 
         let newSelection = new Set(selectedPaths);
         if (e.ctrlKey) {
@@ -632,7 +640,19 @@ const Home = () => {
         const newPath = `${currentPath}/${renameValue}`;
         const result = await window.api.renameEntry(renamingFile, newPath);
         if (result.success) {
+            const oldPath = renamingFile;
             setRenamingFile(null);
+            // Update selection to follow the renamed file
+            setSelectedPaths(prev => {
+                const next = new Set(prev);
+                if (next.has(oldPath)) {
+                    next.delete(oldPath);
+                    next.add(newPath);
+                }
+                return next;
+            });
+            setLastSelectedPath(newPath);
+
             refreshDirectory();
             toast.success('Renamed successfully');
         }
@@ -769,6 +789,16 @@ const Home = () => {
 
     const handleInspectorClose = () => setPreviewOpen(false);
 
+    // Handle version badge click - select file and open inspector
+    const handleVersionClick = (e: React.MouseEvent, file: FileEntry) => {
+        e.stopPropagation();
+        // Select the file
+        setSelectedPaths(new Set([file.path]));
+        setLastSelectedPath(file.path);
+        // Open the inspector panel
+        setPreviewOpen(true);
+    };
+
     const getContextMenuOptions = () => {
         if (!contextMenu) return [];
         if (contextMenu.target) {
@@ -899,6 +929,8 @@ const Home = () => {
                     onOpenFolder={handleOpenFolder}
                     onGoHome={closeWorkspace}
                     hasActiveWorkspace={!!currentPath}
+                    recentProjects={recentWorkspaces}
+                    onSelectProject={openWorkspace}
                 />
 
                 <main className="main-content">
@@ -955,6 +987,7 @@ const Home = () => {
                                     onCreationChange={setCreationName}
                                     onCreationSubmit={submitCreation}
                                     onCreationCancel={cancelCreation}
+                                    onVersionClick={handleVersionClick}
                                 />
 
                                 {isSelecting && selectionBox && (
@@ -985,6 +1018,7 @@ const Home = () => {
                         file={activeFile}
                         projectRoot={rootDir || currentPath || ''}
                         onClose={handleInspectorClose}
+                        onRefresh={() => loadDirectory(currentPath || '')}
                     />
                 )}
             </div>

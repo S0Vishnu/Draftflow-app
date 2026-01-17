@@ -26,6 +26,7 @@ interface FileItemProps {
     onRenameSubmit: () => void;
     onRenameCancel: () => void;
     onContextMenu: (e: React.MouseEvent) => void;
+    onVersionClick?: (e: React.MouseEvent) => void;
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -39,7 +40,8 @@ const FileItem: React.FC<FileItemProps> = ({
     onRenameChange,
     onRenameSubmit,
     onRenameCancel,
-    onContextMenu
+    onContextMenu,
+    onVersionClick
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -82,7 +84,7 @@ const FileItem: React.FC<FileItemProps> = ({
             <div
                 className={`list-row ${selected ? 'selected' : ''}`}
                 data-path={file.path}
-                onClick={onSelect}
+                onMouseDown={onSelect}
                 onDoubleClick={onNavigate}
                 onContextMenu={onContextMenu}
             >
@@ -125,13 +127,20 @@ const FileItem: React.FC<FileItemProps> = ({
         <div
             className={`grid-card ${selected ? 'selected' : ''}`}
             data-path={file.path}
-            onClick={onSelect}
+            onMouseDown={onSelect}
             onDoubleClick={onNavigate}
             onContextMenu={onContextMenu}
         >
             <div className="card-icon">
                 {file.latestVersion && (
-                    <div className="version-indicator-tile">
+                    <div 
+                        className="version-indicator-tile clickable"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onVersionClick?.(e);
+                        }}
+                        title="View version details"
+                    >
                         v{file.latestVersion}
                     </div>
                 )}

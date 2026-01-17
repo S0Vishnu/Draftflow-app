@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Trash2, Plus, Check, Tag, Search, X } from 'lucide-react';
 import '../styles/TodoList.css';
 
@@ -31,6 +31,7 @@ const TodoList: React.FC<TodoListProps> = ({ todos, onAdd, onToggle, onDelete })
 
     // Track items pending deletion for animation
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleSubmit = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -128,13 +129,25 @@ const TodoList: React.FC<TodoListProps> = ({ todos, onAdd, onToggle, onDelete })
             {/* Input Section */}
             <div className="input-section">
                 <div className="input-row-main">
-                    <input
-                        type="text"
+                    <textarea
+                        ref={textareaRef} // Attach ref here
                         placeholder="What needs to be done?"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSubmit();
+                                e.currentTarget.style.height = 'auto';
+                            }
+                        }}
+                        onInput={(e) => {
+                            const target = e.currentTarget;
+                            target.style.height = 'auto';
+                            target.style.height = target.scrollHeight + 'px';
+                        }}
                         className="main-input"
+                        rows={1}
                     />
                     <button
                         onClick={() => handleSubmit()}
@@ -227,6 +240,7 @@ const TodoList: React.FC<TodoListProps> = ({ todos, onAdd, onToggle, onDelete })
                             <div
                                 onClick={() => onToggle(todo.id)}
                                 className={`todo-text ${todo.completed ? 'completed' : ''} ${todo.tags && todo.tags.length > 0 ? 'has-tags' : ''}`}
+                                style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                             >
                                 {todo.text}
                             </div>

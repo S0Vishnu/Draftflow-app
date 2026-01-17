@@ -172,7 +172,7 @@
 .version-item:not(:last-child)::before {
     content: '';
     position: absolute;
-    left: 28px;
+    left: 30px;
     /* Center of the badge (approx) */
     top: 28px;
     /* Start below the badge */
@@ -191,7 +191,7 @@
     width: 60px;
     /* Fixed width for alignment */
     display: flex;
-    justify-content: flex-start;
+    justify-content: center;
 }
 
 .version-badge {
@@ -229,6 +229,7 @@
     font-weight: 500;
     margin-bottom: 6px;
     color: #eaeaeb;
+    white-space: pre-wrap;
 }
 
 .version-meta {
@@ -238,6 +239,61 @@
     flex-direction: column;
     gap: 4px;
     font-weight: 400;
+}
+
+/* From Version Indicator */
+.version-meta-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.version-from-indicator {
+    font-size: 10px;
+    color: #6e7bf2;
+    font-weight: 500;
+    padding: 2px 6px;
+    background: rgba(110, 123, 242, 0.15);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.version-from-indicator.clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.version-from-indicator.clickable:hover {
+    text-decoration: none;
+    opacity: 0.8;
+}
+
+@keyframes flashHighlight {
+    0% { opacity: 0; transform: scale(0.99); }
+    20% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1); }
+}
+
+.highlight-flash {
+    position: relative;
+    z-index: 1; /* Creates a stacking context so ::after z-index: -1 stays within this row */
+}
+
+.highlight-flash::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -12px;
+    right: -12px;
+    bottom: 4px;
+    background-color: rgba(110, 123, 242, 0.15); /* Theme Blue */
+    border: 1px solid rgba(110, 123, 242, 0.3);
+    border-radius: 8px;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0;
+    animation: flashHighlight 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Right Actions */
@@ -288,6 +344,10 @@
     font-size: 13px;
     margin-bottom: 12px;
     outline: none;
+    resize: none;
+    min-height: 34px;
+    line-height: 1.4;
+    overflow: hidden;
 }
 
 .creation-input:focus {

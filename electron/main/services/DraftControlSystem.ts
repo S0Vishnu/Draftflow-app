@@ -27,7 +27,17 @@ export interface VersionManifest {
   label: string;
   timestamp: string;
   files: Record<string, Hash>;
+  fileIds?: Record<string, string>; // Mapping of relativePath -> unique file ID
   parentId: string | null;
+}
+
+export interface FileMetadataStore {
+  id: string;
+  path: string;
+  previousPaths: string[];
+  tags?: string[];
+  tasks?: any[];
+  [key: string]: any;
 }
 
 // --- Constants ---
@@ -130,9 +140,17 @@ export class DraftControlSystem {
    */
   async saveMetadata(relativePath: string, metadata: any): Promise<void> {
     await this.init();
-    const hash = this.hashString(this.normalizePath(relativePath));
+    const norm = this.normalizePath(relativePath);
+    const hash = this.hashString(norm);
     const metaFilePath = path.join(this.draftPath, 'metadata', `${hash}.json`);
-    await this.writeJson(metaFilePath, metadata);
+    
+    // Ensure path is stored in metadata for rename/recovery support
+    const enrichedMetadata = {
+      ...metadata,
+      path: norm
+    };
+    
+    await this.writeJson(metaFilePath, enrichedMetadata);
   }
 
   /**
@@ -148,17 +166,107 @@ export class DraftControlSystem {
   }
 
   /**
+   * Get or create a unique ID for a file/folder from its metadata.
+   */
+  async getOrCreateFileId(relativePath: string): Promise<string> {
+    const normPath = this.normalizePath(relativePath);
+    let meta = await this.getMetadata(normPath);
+
+    if (!meta) {
+      meta = { id: crypto.randomUUID() };
+      await this.saveMetadata(normPath, meta);
+    } else if (!meta.id) {
+      meta.id = crypto.randomUUID();
+      await this.saveMetadata(normPath, meta);
+    }
+
+    return meta.id;
+  }
+
+  /**
+   * Get existing ID for a path without creating one.
+   */
+  async getFileId(relativePath: string): Promise<string | null> {
+    const meta = await this.getMetadata(this.normalizePath(relativePath));
+    return meta?.id || null;
+  }
+
+  /**
    * Move metadata from one file path to another (used during rename).
    */
   async moveMetadata(oldRelativePath: string, newRelativePath: string): Promise<void> {
-    const oldHash = this.hashString(this.normalizePath(oldRelativePath));
-    const newHash = this.hashString(this.normalizePath(newRelativePath));
+    const oldNorm = this.normalizePath(oldRelativePath);
+    const newNorm = this.normalizePath(newRelativePath);
 
-    const oldMetaPath = path.join(this.draftPath, 'metadata', `${oldHash}.json`);
-    const newMetaPath = path.join(this.draftPath, 'metadata', `${newHash}.json`);
+    const metadataDir = path.join(this.draftPath, 'metadata');
+    if (!existsSync(metadataDir)) return;
 
-    if (existsSync(oldMetaPath)) {
-      await fs.rename(oldMetaPath, newMetaPath);
+    // 1. Identify all metadata entries that need to move
+    const files = await fs.readdir(metadataDir);
+    const metadataToMove: { oldPath: string, newPath: string, oldFile: string }[] = [];
+
+    let directMatchHandledByPath = false;
+    const oldHash = this.hashString(oldNorm);
+
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      
+      const metaPath = path.join(metadataDir, file);
+      try {
+        const meta = await this.readJson(metaPath);
+        if (meta && meta.path) {
+          const itemPath = this.normalizePath(meta.path);
+          
+          if (itemPath === oldNorm) {
+            metadataToMove.push({ oldPath: itemPath, newPath: newNorm, oldFile: file });
+            directMatchHandledByPath = true;
+          } else if (itemPath.startsWith(oldNorm + '/')) {
+            const suffix = itemPath.substring(oldNorm.length);
+            metadataToMove.push({ oldPath: itemPath, newPath: newNorm + suffix, oldFile: file });
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to read metadata for ${file} during rename scan:`, e);
+      }
+    }
+
+    // 2. Handling legacy direct match (files without .path property in JSON)
+    if (!directMatchHandledByPath) {
+      const oldMetaPath = path.join(metadataDir, `${oldHash}.json`);
+      if (existsSync(oldMetaPath)) {
+        metadataToMove.push({ oldPath: oldNorm, newPath: newNorm, oldFile: `${oldHash}.json` });
+      }
+    }
+
+    // 3. Execute renames and update properties
+    for (const task of metadataToMove) {
+      const oldFile = path.join(metadataDir, task.oldFile);
+      try {
+        const meta = await this.readJson(oldFile);
+        
+        // Ensure ID exists
+        if (!meta.id) meta.id = crypto.randomUUID();
+        
+        // Track history of paths
+        const prevPaths = new Set(meta.previousPaths || []);
+        prevPaths.add(task.oldPath);
+        meta.previousPaths = Array.from(prevPaths);
+        
+        // Update current path
+        meta.path = task.newPath;
+
+        const newHash = this.hashString(task.newPath);
+        const newFile = path.join(metadataDir, `${newHash}.json`);
+
+        await this.writeJson(newFile, meta);
+        
+        // Delete old metadata file if the hash changed
+        if (newHash !== task.oldFile.replace('.json', '')) {
+          await fs.unlink(oldFile);
+        }
+      } catch (e) {
+        console.error(`Failed to move metadata task ${task.oldPath} -> ${task.newPath}:`, e);
+      }
     }
   }
 
@@ -187,8 +295,6 @@ export class DraftControlSystem {
   // --- Utils ---
 
   private normalizePath(p: string): string {
-    // Normalize to forward slashes for consistent hashing across platforms/renames
-    // Also potentially handle case sensitivity if needed, but keeping it simple.
     return p.replace(/\\/g, '/');
   }
 
@@ -203,11 +309,11 @@ export class DraftControlSystem {
     await this.init();
     const index = await this.readIndex();
     const fileHashes: Record<string, Hash> = {};
+    const fileIds: Record<string, string> = {};
     const newObjects: Record<Hash, FileMetadata> = {};
 
     // 1. Hash files and store new blobs
     for (const filePath of filesToTrack) {
-      // ... (existing has logic, copied below for context if needed, but we assume tool handles replacement block) ...
       const relativePath = path.isAbsolute(filePath)
         ? path.relative(this.projectRoot, filePath)
         : filePath;
@@ -218,8 +324,10 @@ export class DraftControlSystem {
 
       const hash = await this.hashFile(fullPath);
       const stats = await fs.stat(fullPath);
+      const id = await this.getOrCreateFileId(relativePath);
 
       fileHashes[relativePath] = hash;
+      fileIds[relativePath] = id;
 
       const blobPath = path.join(this.objectsPath, hash);
       if (!index.objects[hash] || !existsSync(blobPath)) {
@@ -233,10 +341,6 @@ export class DraftControlSystem {
     }
 
     // 2. Determine Version Number
-    // Logic: 
-    // If currentHead == latestVersion (or null) -> Major Bump (1.0 -> 2.0)
-    // If currentHead != latestVersion (we are detached) -> Minor Bump (1.0 -> 1.1)
-
     let nextVerNum = "1.0";
     const parentId = index.currentHead;
 
@@ -252,10 +356,8 @@ export class DraftControlSystem {
         const pMinor = parts.length > 1 ? parseInt(parts[1]) : 0;
 
         if (index.currentHead === index.latestVersion) {
-          // Linear progression - Increment Major
           nextVerNum = (pMajor + 1).toString();
         } else {
-          // Branching/Restored - Increment Minor
           const allManifests = await this.getHistory();
           let maxMinor = pMinor;
           for (const m of allManifests) {
@@ -270,9 +372,6 @@ export class DraftControlSystem {
           nextVerNum = `${pMajor}.${maxMinor + 1}`;
         }
       }
-    } else {
-      // No parent, but maybe history exists? (e.g. deleted head)
-      // Reset to 1.0 or find max? Let's default to 1.0 for fresh start.
     }
 
     // 2b. Create Version Manifest
@@ -283,6 +382,7 @@ export class DraftControlSystem {
       label,
       timestamp: new Date().toISOString(),
       files: fileHashes,
+      fileIds: fileIds,
       parentId: parentId || null
     };
 
@@ -297,8 +397,8 @@ export class DraftControlSystem {
       }
     }
 
-    index.latestVersion = versionId; // Newest is always latest chronologically
-    index.currentHead = versionId;   // Move head to new commit
+    index.latestVersion = versionId;
+    index.currentHead = versionId;
     await this.writeIndex(index);
 
     return versionId;
@@ -306,7 +406,6 @@ export class DraftControlSystem {
 
   /**
    * Restore the working directory to a specific version.
-   * WARNING: Overwrites files in working directory.
    */
   async restore(versionId: string): Promise<void> {
     const manifestPath = path.join(this.versionsPath, `${versionId}.json`);
@@ -322,23 +421,20 @@ export class DraftControlSystem {
 
       if (!existsSync(blobPath)) {
         console.error(`Missing blob for ${relativePath} (Hash: ${hash})`);
-        continue; // Critical error actually
+        continue;
       }
 
-      // Check current file hash to avoid unnecessary writes
       let currentHash = '';
       if (existsSync(destPath)) {
         currentHash = await this.hashFile(destPath);
       }
 
       if (currentHash !== hash) {
-        // Ensure dir exists
         await fs.mkdir(path.dirname(destPath), { recursive: true });
         await fs.copyFile(blobPath, destPath);
       }
     }
 
-    // Update currentHead to point to the restored version for branching logic
     const index = await this.readIndex();
     index.currentHead = versionId;
     await this.writeIndex(index);
@@ -353,19 +449,15 @@ export class DraftControlSystem {
       throw new Error(`Version ${versionId} not found.`);
     }
 
-    // 1. Read manifest to know what files to dereference
     const manifest: VersionManifest = await this.readJson(manifestPath);
     const index: VersionIndex = await this.readIndex();
 
-    // 2. Delete the manifest file
     await fs.unlink(manifestPath);
 
-    // 3. Update Ref Counts & GC
     for (const hash of Object.values(manifest.files)) {
       if (index.objects[hash]) {
         index.objects[hash].refCount--;
 
-        // Garbage Collection: If no versions reference this blob, delete it.
         if (index.objects[hash].refCount <= 0) {
           const blobPath = path.join(this.objectsPath, hash);
           try {
@@ -380,42 +472,12 @@ export class DraftControlSystem {
       }
     }
 
-    // 4. Update latestVersion pointer
     if (index.latestVersion === versionId) {
-      // Find the new latest version by scanning remaining files
-      const history = await this.getHistory(); // valid because we deleted the file already
+      const history = await this.getHistory();
       index.latestVersion = history.length > 0 ? history[0].id : null;
     }
 
     await this.writeIndex(index);
-  }
-
-  /**
-   * Diff between current working files and a version (or latest).
-   */
-  async status(): Promise<{ modified: string[], new: string[], deleted: string[] }> {
-    const index = await this.readIndex();
-    if (!index.latestVersion) return { modified: [], new: [], deleted: [] };
-
-    const manifestPath = path.join(this.versionsPath, `${index.latestVersion}.json`);
-    const manifest: VersionManifest = await this.readJson(manifestPath);
-
-    // This requires a full scan of the directory, which is expensive.
-    // For this lightweight system, we assume user passes the files they care about 
-    // or we scan a specific root. 
-    // Implementation omitted for brevity, but logic is:
-    // 1. Get List of all files in projectRoot (recursive).
-    // 2. Hash them.
-    // 3. Compare with manifest.files.
-    return { modified: [], new: [], deleted: [] };
-  }
-
-  /**
-   * Get the current head version ID.
-   */
-  async getCurrentHead(): Promise<string | null> {
-    const index = await this.readIndex();
-    return index.currentHead;
   }
 
   /**
@@ -438,115 +500,157 @@ export class DraftControlSystem {
       }
     }
 
-    // Sort by timestamp ascending (oldest first) to assign numbers correctly
     manifests.sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
 
-    // Read index once to get sizes
     let index: VersionIndex | null = null;
     try {
       index = await this.readIndex();
     } catch (e) { /* ignore */ }
 
-    // Backfill missing version numbers for legacy commits and calculate size
-    let maxMajor = 0;
-
     for (let i = 0; i < manifests.length; i++) {
-      if (!manifests[i].versionNumber) {
-        // Assign a legacy version number (e.g. 1, 2, 3)
-        manifests[i].versionNumber = (i + 1).toString();
-      }
+        if (!manifests[i].versionNumber) {
+          manifests[i].versionNumber = (i + 1).toString();
+        }
 
-      // Track max for future commits
-      const parts = manifests[i].versionNumber.split('.');
-      const maj = parseInt(parts[0]);
-      // Treat 1 as 1.0
-      if (!isNaN(maj) && maj > maxMajor) maxMajor = maj;
-
-      // Calculate Total Size
-      let totalSize = 0;
-      if (index && index.objects) {
-        for (const hash of Object.values(manifests[i].files)) {
-          if (index.objects[hash]) {
-            totalSize += index.objects[hash].size;
+        let totalSize = 0;
+        if (index && index.objects) {
+          for (const hash of Object.values(manifests[i].files)) {
+            if (index.objects[hash]) {
+              totalSize += index.objects[hash].size;
+            }
           }
         }
-      }
-      // @ts-ignore
-      manifests[i].totalSize = totalSize;
+        // @ts-ignore
+        manifests[i].totalSize = totalSize;
     }
 
     let result = manifests;
 
     if (filterFile) {
-      const target = this.normalizePath(filterFile);
-      result = result.filter(m => {
-        // Direct match
-        if (m.files[target]) return true;
+        const target = this.normalizePath(filterFile);
+        const meta = await this.getMetadata(target);
+        const targetId = meta?.id || null;
+        
+        // Robust directory detection
+        let isDirectory = false;
+        try {
+            const stats = await fs.stat(path.join(this.projectRoot, target));
+            isDirectory = stats.isDirectory();
+        } catch {
+            // If not physical, check if any version manifest has it as a folder prefix
+            // or if we have historical paths that were folders
+            const searchTargets = new Set<string>([target]);
+            if (meta?.previousPaths) meta.previousPaths.forEach((p: string) => searchTargets.add(this.normalizePath(p)));
+            
+            outer: for (const m of result) {
+                if (!m.files) continue;
+                for (const fPath of Object.keys(m.files)) {
+                    for (const st of searchTargets) {
+                        if (fPath.startsWith(st + '/')) {
+                            isDirectory = true;
+                            break outer;
+                        }
+                    }
+                }
+            }
+        }
+        
+        const searchPaths = new Set<string>([target, target.toLowerCase()]);
+        if (meta?.previousPaths) {
+          meta.previousPaths.forEach((p: string) => {
+            const n = this.normalizePath(p);
+            searchPaths.add(n);
+            searchPaths.add(n.toLowerCase());
+          });
+        }
+  
+        result = result.filter(m => {
+          if (!m.files) return false;
 
-        // Normalized match
-        if (Object.keys(m.files).some(k => this.normalizePath(k) === target)) return true;
-
-        // Case-insensitive match (Robustness for Windows)
-        const lowerTarget = target.toLowerCase();
-        return Object.keys(m.files).some(k => this.normalizePath(k).toLowerCase() === lowerTarget);
-      });
-
-      // Re-calculate size to reflect ONLY the filtered file
-      if (index && index.objects) {
-        for (const m of result) {
-          let specificSize = 0;
-          // Find the specific hash for the target file in this manifest
-          for (const [fPath, fHash] of Object.entries(m.files)) {
+          // 1. Match by ID (Best for post-ID commits)
+          if (targetId && m.fileIds) {
+            if (Object.values(m.fileIds).includes(targetId)) return true;
+          }
+  
+          // 2. Match by any current or historical path
+          for (const fPath of Object.keys(m.files)) {
             const norm = this.normalizePath(fPath);
-            if (norm === target || norm.toLowerCase() === target.toLowerCase()) {
-              if (index.objects[fHash]) {
-                specificSize = index.objects[fHash].size;
-              }
-              break;
+            
+            // Exact match (current or historical)
+            if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) return true;
+
+            // Directory match (if any file in version is inside the target folder)
+            if (isDirectory) {
+               for (const sPath of searchPaths) {
+                   if (norm.startsWith(sPath + '/')) return true;
+               }
             }
           }
-          // Overwrite totalSize with specific file size for UI clarity
-          // @ts-ignore
-          m.totalSize = specificSize;
+  
+          return false;
+        });
+
+        // Re-calculate size to reflect ONLY the relevant files
+        const index = await this.readJson(path.join(this.draftPath, 'index.json')).catch(() => null);
+        if (index && index.objects) {
+          for (const m of result) {
+            let relevantSize = 0;
+            if (!m.files) continue;
+            
+            for (const [fPath, fHash] of Object.entries(m.files)) {
+                const norm = this.normalizePath(fPath);
+                let isMatch = false;
+
+                // ID check
+                if (targetId && m.fileIds && m.fileIds[fPath] === targetId) {
+                    isMatch = true;
+                }
+                
+                // Path check
+                if (!isMatch) {
+                    if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) {
+                        isMatch = true;
+                    } else if (isDirectory) {
+                        for (const sPath of searchPaths) {
+                            if (norm.startsWith(sPath + '/')) {
+                                isMatch = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (isMatch && index.objects[fHash]) {
+                    relevantSize += index.objects[fHash].size;
+                }
+            }
+            
+            // @ts-ignore
+            m.totalSize = relevantSize;
+          }
         }
-      }
     }
 
-    // Sort by timestamp descending (newest first) for UI
     return result.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }
 
   /**
-   * Get the latest version number for a specific file.
-   */
-  /**
    * Get the active version number for a specific file.
-   * Returns the version index (e.g. "4", "3") matching the Inspector Panel logic.
-   * If currentHead is current, returns the version number relative to history length.
    */
   async getLatestVersionForFile(relativePath: string): Promise<string | null> {
-    // 1. Get filtered history for this file (newest first)
     const history = await this.getHistory(relativePath);
     if (history.length === 0) return null;
 
-    // 2. Get current head
     const currentHead = await this.getCurrentHead();
-
-    // 3. Find if current head corresponds to one of these versions
     let activeIdx = -1;
-
     if (currentHead) {
       activeIdx = history.findIndex(h => h.id === currentHead);
     }
 
-    // 4. Calculate display version
-    // Logic matches InspectorPanel: v{HistoryLength - Index}
-    // If activeIdx is -1 (not found in history, e.g. new file or detached head not relevant to this file),
-    // we default to showing the Latest available version count (index 0 behavior).
     const indexToUse = activeIdx === -1 ? 0 : activeIdx;
     const versionNum = history.length - indexToUse;
 
@@ -563,20 +667,14 @@ export class DraftControlSystem {
     }
 
     const manifest: VersionManifest = await this.readJson(manifestPath);
-    // Normalize path just in case
-    const normPath = relativeFilePath.split(path.sep).join(path.posix.sep); // Store is likely posix or consistent?
-
-    // We stored paths in keys. Let's try direct lookup first, then fallback to normalized.
     let hash = manifest.files[relativeFilePath];
     const target = relativeFilePath.replace(/\\/g, '/');
 
     if (!hash) {
-      // Try finding by matching suffix or normalized if strict lookup fails
       const foundKey = Object.keys(manifest.files).find(k => k.replace(/\\/g, '/') === target);
       if (foundKey) {
         hash = manifest.files[foundKey];
       } else {
-        // Fallback: Case-insensitive match (robustness for Windows)
         const lowerTarget = target.toLowerCase();
         const foundKeyCI = Object.keys(manifest.files).find(k => k.replace(/\\/g, '/').toLowerCase() === lowerTarget);
         if (foundKeyCI) hash = manifest.files[foundKeyCI];
@@ -584,9 +682,7 @@ export class DraftControlSystem {
     }
 
     if (!hash) {
-      // Debug info: show what we have vs what was requested
-      const keys = Object.keys(manifest.files).slice(0, 10).join(', '); // Limit to 10
-      throw new Error(`File ${relativeFilePath} (target: ${target}) not found in ${versionId}. Keys: [${keys}...]`);
+      throw new Error(`File ${relativeFilePath} not found in ${versionId}.`);
     }
 
     const blobPath = path.join(this.objectsPath, hash);
@@ -594,9 +690,16 @@ export class DraftControlSystem {
       throw new Error(`Blob missing for ${relativeFilePath} (Hash: ${hash})`);
     }
 
-    // Create dir if needed
     await fs.mkdir(path.dirname(destPath), { recursive: true });
     await fs.copyFile(blobPath, destPath);
+  }
+
+  /**
+   * Get the current head version ID.
+   */
+  async getCurrentHead(): Promise<string | null> {
+    const index = await this.readIndex();
+    return index.currentHead;
   }
 
   // --- Helpers ---
@@ -609,11 +712,7 @@ export class DraftControlSystem {
   }
 
   private async copyFileToBlob(src: string, dest: string): Promise<void> {
-    // Copy then verify? Or just atomic copy. 
-    // Using copyFile is usually atomic enough for local FS on same drive.
     await fs.copyFile(src, dest);
-    // Determine strict readonly permissions for blobs? 
-    // await fs.chmod(dest, 0o444); 
   }
 
   private async readIndex(): Promise<VersionIndex> {
@@ -633,16 +732,16 @@ export class DraftControlSystem {
   }
 
   private async writeJson(file: string, data: any): Promise<void> {
-    // Atomic write pattern
     const tempFile = `${file}.tmp`;
     await fs.writeFile(tempFile, JSON.stringify(data, null, 2));
     await fs.rename(tempFile, file);
   }
+
   /**
    * Get storage usage report.
    */
   async getStorageReport(): Promise<any> {
-    const history = await this.getHistory(); // already sorted newest first
+    const history = await this.getHistory();
     const index = await this.readIndex();
 
     const files: Record<string, {
@@ -655,17 +754,14 @@ export class DraftControlSystem {
 
     for (const v of history) {
       for (const [filePath, hash] of Object.entries(v.files)) {
-        // Normalize path
         const normPath = this.normalizePath(filePath);
-
-        // Filter out internal .draft files
         if (normPath.startsWith('.draft/') || normPath === ('.draft')) continue;
 
         if (!files[normPath]) {
           files[normPath] = {
             path: normPath,
             versionCount: 0,
-            latestDate: v.timestamp, // First one seen is latest because of sort
+            latestDate: v.timestamp,
             latestVersionId: v.id,
             uniqueBlobs: new Set()
           };
@@ -674,7 +770,6 @@ export class DraftControlSystem {
         files[normPath].versionCount++;
         files[normPath].uniqueBlobs.add(hash);
 
-        // Update date if current v is newer (shouldn't be needed due to sort, but safety)
         if (new Date(v.timestamp) > new Date(files[normPath].latestDate)) {
           files[normPath].latestDate = v.timestamp;
           files[normPath].latestVersionId = v.id;
@@ -682,8 +777,6 @@ export class DraftControlSystem {
       }
     }
 
-    // Calculate approx size per file (sum of its unique blobs)
-    // Note: Deduplication works across files too, so summing these might > totalSize.
     const fileReports = Object.values(files).map(f => {
       let size = 0;
       f.uniqueBlobs.forEach(hash => {
@@ -697,7 +790,6 @@ export class DraftControlSystem {
       };
     });
 
-    // Total Object Storage Size
     let totalSize = 0;
     if (index.objects) {
       for (const obj of Object.values(index.objects)) {

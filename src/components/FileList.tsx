@@ -22,6 +22,7 @@ interface FileListProps {
     onRenameSubmit: () => void;
     onRenameCancel: () => void;
     onContextMenu: (e: React.MouseEvent, file?: FileEntry) => void;
+    onVersionClick?: (e: React.MouseEvent, file: FileEntry) => void;
 
     // Creation Handlers
     onCreationChange: (val: string) => void;
@@ -32,7 +33,7 @@ interface FileListProps {
 const FileList: React.FC<FileListProps> = ({
     files, viewMode, selectedPaths, renamingFile, renameValue, sortConfig,
     isCreating, creationName,
-    onSort, onSelect, onNavigate, onRenameChange, onRenameSubmit, onRenameCancel, onContextMenu,
+    onSort, onSelect, onNavigate, onRenameChange, onRenameSubmit, onRenameCancel, onContextMenu, onVersionClick,
     onCreationChange, onCreationSubmit, onCreationCancel
 }) => {
 
@@ -101,6 +102,7 @@ const FileList: React.FC<FileListProps> = ({
                         onRenameSubmit={onRenameSubmit}
                         onRenameCancel={onRenameCancel}
                         onContextMenu={(e) => onContextMenu(e, file)}
+                        onVersionClick={onVersionClick ? (e) => onVersionClick(e, file) : undefined}
                     />
                 ))}
             </div>

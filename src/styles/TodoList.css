@@ -89,6 +89,11 @@
     color: #fff;
     font-size: 14px;
     outline: none;
+    resize: none;
+    min-height: 20px;
+    padding: 6px 0;
+    line-height: 1.4;
+    overflow: hidden;
 }
 
 .add-btn {
