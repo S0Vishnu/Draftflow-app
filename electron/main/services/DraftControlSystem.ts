@@ -143,13 +143,13 @@ export class DraftControlSystem {
     const norm = this.normalizePath(relativePath);
     const hash = this.hashString(norm);
     const metaFilePath = path.join(this.draftPath, 'metadata', `${hash}.json`);
-    
+
     // Ensure path is stored in metadata for rename/recovery support
     const enrichedMetadata = {
       ...metadata,
       path: norm
     };
-    
+
     await this.writeJson(metaFilePath, enrichedMetadata);
   }
 
@@ -193,6 +193,7 @@ export class DraftControlSystem {
 
   /**
    * Move metadata from one file path to another (used during rename).
+   * Keeps old metadata files to preserve bidirectional linking.
    */
   async moveMetadata(oldRelativePath: string, newRelativePath: string): Promise<void> {
     const oldNorm = this.normalizePath(oldRelativePath);
@@ -210,13 +211,13 @@ export class DraftControlSystem {
 
     for (const file of files) {
       if (!file.endsWith('.json')) continue;
-      
+
       const metaPath = path.join(metadataDir, file);
       try {
         const meta = await this.readJson(metaPath);
         if (meta && meta.path) {
           const itemPath = this.normalizePath(meta.path);
-          
+
           if (itemPath === oldNorm) {
             metadataToMove.push({ oldPath: itemPath, newPath: newNorm, oldFile: file });
             directMatchHandledByPath = true;
@@ -243,26 +244,40 @@ export class DraftControlSystem {
       const oldFile = path.join(metadataDir, task.oldFile);
       try {
         const meta = await this.readJson(oldFile);
-        
+
         // Ensure ID exists
         if (!meta.id) meta.id = crypto.randomUUID();
-        
+        const fileId = meta.id;
+
         // Track history of paths
         const prevPaths = new Set(meta.previousPaths || []);
         prevPaths.add(task.oldPath);
         meta.previousPaths = Array.from(prevPaths);
-        
-        // Update current path
-        meta.path = task.newPath;
+
+        // Create new metadata for the new path
+        const newMeta = {
+          ...meta,
+          path: task.newPath
+        };
 
         const newHash = this.hashString(task.newPath);
         const newFile = path.join(metadataDir, `${newHash}.json`);
 
-        await this.writeJson(newFile, meta);
-        
-        // Delete old metadata file if the hash changed
+        // Write new metadata file
+        await this.writeJson(newFile, newMeta);
+
+        // Update old metadata to point to new path (bidirectional linking)
+        // Keep the old file but mark it as renamed
+        const oldMeta = {
+          ...meta,
+          path: task.oldPath,
+          renamedTo: task.newPath,
+          id: fileId // Ensure same ID for linking
+        };
+
+        // Only update old file if it's different from new file
         if (newHash !== task.oldFile.replace('.json', '')) {
-          await fs.unlink(oldFile);
+          await this.writeJson(oldFile, oldMeta);
         }
       } catch (e) {
         console.error(`Failed to move metadata task ${task.oldPath} -> ${task.newPath}:`, e);
@@ -416,7 +431,60 @@ export class DraftControlSystem {
     const manifest: VersionManifest = await this.readJson(manifestPath);
 
     for (const [relativePath, hash] of Object.entries(manifest.files)) {
-      const destPath = path.join(this.projectRoot, relativePath);
+      // Determine the actual destination path
+      // If the file has been renamed, use the current path instead of the old one
+      let actualPath: string | null = null;
+      let foundMetadata = false;
+
+      // Check if we have a file ID for this file in the manifest
+      if (manifest.fileIds && manifest.fileIds[relativePath]) {
+        const fileId = manifest.fileIds[relativePath];
+
+        // Search through all metadata to find the current path for this file ID
+        const metadataDir = path.join(this.draftPath, 'metadata');
+        if (existsSync(metadataDir)) {
+          try {
+            const metaFiles = await fs.readdir(metadataDir);
+            for (const metaFile of metaFiles) {
+              if (!metaFile.endsWith('.json')) continue;
+
+              try {
+                const meta = await this.readJson(path.join(metadataDir, metaFile));
+                if (meta && meta.id === fileId && meta.path) {
+                  // Found the current path for this file
+                  actualPath = meta.path;
+                  foundMetadata = true;
+                  break;
+                }
+              } catch (e) {
+                // Skip invalid metadata files
+                continue;
+              }
+            }
+          } catch (e) {
+            console.error(`Error searching metadata for file ID ${fileId}:`, e);
+          }
+        }
+      }
+
+      // If no file ID or couldn't find by ID, check if metadata exists for the original path
+      if (!foundMetadata) {
+        const meta = await this.getMetadata(relativePath);
+        if (meta && meta.path) {
+          // File still exists with original path or has metadata
+          actualPath = meta.path;
+          foundMetadata = true;
+        }
+      }
+
+      // IMPORTANT: Skip files that have no current metadata
+      // This prevents recreating files that were renamed/deleted
+      if (!foundMetadata || !actualPath) {
+        console.log(`Skipping ${relativePath} - no current metadata found (likely renamed or deleted)`);
+        continue;
+      }
+
+      const destPath = path.join(this.projectRoot, actualPath);
       const blobPath = path.join(this.objectsPath, hash);
 
       if (!existsSync(blobPath)) {
@@ -510,127 +578,187 @@ export class DraftControlSystem {
     } catch (e) { /* ignore */ }
 
     for (let i = 0; i < manifests.length; i++) {
-        if (!manifests[i].versionNumber) {
-          manifests[i].versionNumber = (i + 1).toString();
-        }
+      if (!manifests[i].versionNumber) {
+        manifests[i].versionNumber = (i + 1).toString();
+      }
 
-        let totalSize = 0;
-        if (index && index.objects) {
-          for (const hash of Object.values(manifests[i].files)) {
-            if (index.objects[hash]) {
-              totalSize += index.objects[hash].size;
-            }
+      let totalSize = 0;
+      if (index && index.objects) {
+        for (const hash of Object.values(manifests[i].files)) {
+          if (index.objects[hash]) {
+            totalSize += index.objects[hash].size;
           }
         }
-        // @ts-ignore
-        manifests[i].totalSize = totalSize;
+      }
+      // @ts-ignore
+      manifests[i].totalSize = totalSize;
     }
 
     let result = manifests;
 
     if (filterFile) {
-        const target = this.normalizePath(filterFile);
-        const meta = await this.getMetadata(target);
-        const targetId = meta?.id || null;
-        
-        // Robust directory detection
-        let isDirectory = false;
+      const target = this.normalizePath(filterFile);
+      const meta = await this.getMetadata(target);
+      let targetId = meta?.id || null;
+
+      // Search all metadata files to find any that link to this path
+      // This handles bidirectional linking for renamed files
+      const metadataDir = path.join(this.draftPath, 'metadata');
+      const allRelatedIds = new Set<string>();
+      const allRelatedPaths = new Set<string>();
+
+      if (existsSync(metadataDir)) {
         try {
-            const stats = await fs.stat(path.join(this.projectRoot, target));
-            isDirectory = stats.isDirectory();
-        } catch {
-            // If not physical, check if any version manifest has it as a folder prefix
-            // or if we have historical paths that were folders
-            const searchTargets = new Set<string>([target]);
-            if (meta?.previousPaths) meta.previousPaths.forEach((p: string) => searchTargets.add(this.normalizePath(p)));
-            
-            outer: for (const m of result) {
-                if (!m.files) continue;
-                for (const fPath of Object.keys(m.files)) {
-                    for (const st of searchTargets) {
-                        if (fPath.startsWith(st + '/')) {
-                            isDirectory = true;
-                            break outer;
-                        }
-                    }
-                }
-            }
-        }
-        
-        const searchPaths = new Set<string>([target, target.toLowerCase()]);
-        if (meta?.previousPaths) {
-          meta.previousPaths.forEach((p: string) => {
-            const n = this.normalizePath(p);
-            searchPaths.add(n);
-            searchPaths.add(n.toLowerCase());
-          });
-        }
-  
-        result = result.filter(m => {
-          if (!m.files) return false;
+          const metaFiles = await fs.readdir(metadataDir);
+          for (const metaFile of metaFiles) {
+            if (!metaFile.endsWith('.json')) continue;
 
-          // 1. Match by ID (Best for post-ID commits)
-          if (targetId && m.fileIds) {
-            if (Object.values(m.fileIds).includes(targetId)) return true;
+            try {
+              const metaData = await this.readJson(path.join(metadataDir, metaFile));
+              if (!metaData) continue;
+
+              const metaPath = metaData.path ? this.normalizePath(metaData.path) : null;
+              const renamedTo = metaData.renamedTo ? this.normalizePath(metaData.renamedTo) : null;
+
+              // Check if this metadata is related to our target
+              const isRelated =
+                metaPath === target ||
+                renamedTo === target ||
+                (metaData.previousPaths && metaData.previousPaths.some((p: string) => this.normalizePath(p) === target));
+
+              if (isRelated && metaData.id) {
+                allRelatedIds.add(metaData.id);
+                if (metaPath) allRelatedPaths.add(metaPath);
+                if (renamedTo) allRelatedPaths.add(renamedTo);
+                if (metaData.previousPaths) {
+                  metaData.previousPaths.forEach((p: string) => allRelatedPaths.add(this.normalizePath(p)));
+                }
+              }
+
+              // If we found the target ID, also collect all paths with same ID
+              if (targetId && metaData.id === targetId) {
+                if (metaPath) allRelatedPaths.add(metaPath);
+                if (renamedTo) allRelatedPaths.add(renamedTo);
+                if (metaData.previousPaths) {
+                  metaData.previousPaths.forEach((p: string) => allRelatedPaths.add(this.normalizePath(p)));
+                }
+              }
+            } catch (e) {
+              // Skip invalid metadata files
+              continue;
+            }
           }
-  
-          // 2. Match by any current or historical path
+        } catch (e) {
+          console.error('Error reading metadata directory:', e);
+        }
+      }
+
+      // If we found related IDs, use them; otherwise use the original targetId
+      if (allRelatedIds.size > 0) {
+        // Use the first ID we found (they should all be the same for linked files)
+        targetId = Array.from(allRelatedIds)[0];
+      }
+
+      // Robust directory detection
+      let isDirectory = false;
+      try {
+        const stats = await fs.stat(path.join(this.projectRoot, target));
+        isDirectory = stats.isDirectory();
+      } catch {
+        // If not physical, check if any version manifest has it as a folder prefix
+        // or if we have historical paths that were folders
+        const searchTargets = new Set<string>([target, ...allRelatedPaths]);
+        if (meta?.previousPaths) meta.previousPaths.forEach((p: string) => searchTargets.add(this.normalizePath(p)));
+
+        outer: for (const m of result) {
+          if (!m.files) continue;
           for (const fPath of Object.keys(m.files)) {
-            const norm = this.normalizePath(fPath);
-            
-            // Exact match (current or historical)
-            if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) return true;
-
-            // Directory match (if any file in version is inside the target folder)
-            if (isDirectory) {
-               for (const sPath of searchPaths) {
-                   if (norm.startsWith(sPath + '/')) return true;
-               }
+            for (const st of searchTargets) {
+              if (fPath.startsWith(st + '/')) {
+                isDirectory = true;
+                break outer;
+              }
             }
-          }
-  
-          return false;
-        });
-
-        // Re-calculate size to reflect ONLY the relevant files
-        const index = await this.readJson(path.join(this.draftPath, 'index.json')).catch(() => null);
-        if (index && index.objects) {
-          for (const m of result) {
-            let relevantSize = 0;
-            if (!m.files) continue;
-            
-            for (const [fPath, fHash] of Object.entries(m.files)) {
-                const norm = this.normalizePath(fPath);
-                let isMatch = false;
-
-                // ID check
-                if (targetId && m.fileIds && m.fileIds[fPath] === targetId) {
-                    isMatch = true;
-                }
-                
-                // Path check
-                if (!isMatch) {
-                    if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) {
-                        isMatch = true;
-                    } else if (isDirectory) {
-                        for (const sPath of searchPaths) {
-                            if (norm.startsWith(sPath + '/')) {
-                                isMatch = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (isMatch && index.objects[fHash]) {
-                    relevantSize += index.objects[fHash].size;
-                }
-            }
-            
-            // @ts-ignore
-            m.totalSize = relevantSize;
           }
         }
+      }
+
+      const searchPaths = new Set<string>([target, target.toLowerCase(), ...allRelatedPaths]);
+      if (meta?.previousPaths) {
+        meta.previousPaths.forEach((p: string) => {
+          const n = this.normalizePath(p);
+          searchPaths.add(n);
+          searchPaths.add(n.toLowerCase());
+        });
+      }
+      // Add lowercase versions of all related paths
+      allRelatedPaths.forEach(p => searchPaths.add(p.toLowerCase()));
+
+      result = result.filter(m => {
+        if (!m.files) return false;
+
+        // 1. Match by ID (Best for post-ID commits)
+        if (targetId && m.fileIds) {
+          if (Object.values(m.fileIds).includes(targetId)) return true;
+        }
+
+        // 2. Match by any current or historical path
+        for (const fPath of Object.keys(m.files)) {
+          const norm = this.normalizePath(fPath);
+
+          // Exact match (current or historical)
+          if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) return true;
+
+          // Directory match (if any file in version is inside the target folder)
+          if (isDirectory) {
+            for (const sPath of searchPaths) {
+              if (norm.startsWith(sPath + '/')) return true;
+            }
+          }
+        }
+
+        return false;
+      });
+
+      // Re-calculate size to reflect ONLY the relevant files
+      const index = await this.readJson(path.join(this.draftPath, 'index.json')).catch(() => null);
+      if (index && index.objects) {
+        for (const m of result) {
+          let relevantSize = 0;
+          if (!m.files) continue;
+
+          for (const [fPath, fHash] of Object.entries(m.files)) {
+            const norm = this.normalizePath(fPath);
+            let isMatch = false;
+
+            // ID check
+            if (targetId && m.fileIds && m.fileIds[fPath] === targetId) {
+              isMatch = true;
+            }
+
+            // Path check
+            if (!isMatch) {
+              if (searchPaths.has(norm) || searchPaths.has(norm.toLowerCase())) {
+                isMatch = true;
+              } else if (isDirectory) {
+                for (const sPath of searchPaths) {
+                  if (norm.startsWith(sPath + '/')) {
+                    isMatch = true;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (isMatch && index.objects[fHash]) {
+              relevantSize += index.objects[fHash].size;
+            }
+          }
+
+          // @ts-ignore
+          m.totalSize = relevantSize;
+        }
+      }
     }
 
     return result.sort((a, b) =>
@@ -803,4 +931,5 @@ export class DraftControlSystem {
       files: fileReports.sort((a, b) => b.totalHistorySize - a.totalHistorySize)
     };
   }
+
 }
