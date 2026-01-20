@@ -450,7 +450,8 @@ export class DraftControlSystem {
 
               try {
                 const meta = await this.readJson(path.join(metadataDir, metaFile));
-                if (meta && meta.id === fileId && meta.path) {
+                // Ignore metadata that points to a renamed file (historical record)
+                if (meta && meta.id === fileId && meta.path && !meta.renamedTo) {
                   // Found the current path for this file
                   actualPath = meta.path;
                   foundMetadata = true;
@@ -469,7 +470,16 @@ export class DraftControlSystem {
 
       // If no file ID or couldn't find by ID, check if metadata exists for the original path
       if (!foundMetadata) {
-        const meta = await this.getMetadata(relativePath);
+        let meta = await this.getMetadata(relativePath);
+
+        // Follow rename chain
+        let depth = 0;
+        const MAX_DEPTH = 50;
+        while (meta && meta.renamedTo && depth < MAX_DEPTH) {
+          meta = await this.getMetadata(meta.renamedTo);
+          depth++;
+        }
+
         if (meta && meta.path) {
           // File still exists with original path or has metadata
           actualPath = meta.path;
