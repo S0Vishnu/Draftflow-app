@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, Volume2, Mic, Radio, MessageSquare } from 'lucide-react';
+import { Hash, Volume2, MessageSquare } from 'lucide-react';
 
 const channels = [
     { id: 'general', name: 'General', type: 'text', icon: Hash },

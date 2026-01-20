@@ -1,4 +1,4 @@
-import { app, ipcMain, shell, safeStorage } from 'electron';
+import { ipcMain, shell } from 'electron';
 import keytar from 'keytar';
 import { EventEmitter } from 'events';
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
-    X, Info, Layers, Paperclip, GitBranch, Image as ImageIcon,
+    X, Info, Layers, Paperclip, GitBranch,
     Trash2, RotateCcw, Upload, Plus, CheckCircle, Download,
     Tag
 } from 'lucide-react';
@@ -373,7 +373,7 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
             onConfirm: async () => {
                 // @ts-ignore
                 await window.api.draft.delete(projectRoot, vId);
-                
+
                 const relPath = getRelativePath();
                 if (relPath) {
                     // @ts-ignore
@@ -708,18 +708,18 @@ const InspectorPanel: React.FC<InspectorPanelProps> = ({ file, projectRoot, onCl
                         {history.map((ver, idx) => {
                             if (!ver) return null;
                             const verNum = history.length - idx;
-                            
+
                             // Try to find actual parent version number
                             const parentId = ver.parent || (ver.parents && ver.parents[0]) || ver.parentId;
                             let displayParentNum: number | null = null;
-                            
+
                             if (parentId) {
                                 const pIdx = history.findIndex(v => v.id === parentId);
                                 if (pIdx !== -1) {
                                     displayParentNum = history.length - pIdx;
                                 }
                             }
-                            
+
                             // Fallback to previous in list if no parent info or parent not in filtered list
                             const finalParentNum = displayParentNum !== null ? displayParentNum : (idx < history.length - 1 ? verNum - 1 : null);
 

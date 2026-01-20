@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Rocket, X, RefreshCw } from 'lucide-react';
+import { Download, Rocket } from 'lucide-react';
 import '../styles/UpdateModal.css';
 
 interface UpdateModalProps {

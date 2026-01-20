@@ -1,6 +1,6 @@
 
 import fs from 'fs/promises';
-import { createReadStream, createWriteStream, existsSync } from 'fs';
+import { createReadStream, existsSync } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { pipeline } from 'stream/promises';

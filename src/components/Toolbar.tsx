@@ -2,7 +2,7 @@
 import React from 'react';
 import {
     ChevronLeft, ChevronRight, Home as HomeIcon, ChevronRight as ChevronRightIcon,
-    FolderPlus, FilePlus, List, LayoutGrid, Settings, Check, Eye, EyeOff, RotateCw
+    FolderPlus, FilePlus, List, LayoutGrid, Settings, Check, RotateCw
 } from 'lucide-react';
 import { FileEntry } from './FileItem';
 

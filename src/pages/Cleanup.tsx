@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
-import { HardDrive, Trash2, Archive, Search, ArrowLeft, Check, AlertCircle } from 'lucide-react';
+import { Trash2, Search, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Cleanup.css';
 import { useAuthState } from 'react-firebase-hooks/auth';
