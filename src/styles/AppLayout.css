@@ -57,15 +57,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    flex-shrink: 0; /* Keep top fixed */
+    flex-shrink: 0;
+    /* Keep top fixed */
 }
 
 .sidebar-bottom {
     display: flex;
     flex-direction: column;
     align-items: center;
-    flex-shrink: 0; /* Keep bottom fixed */
-    margin-top: auto; /* Push to bottom if no projects */
+    flex-shrink: 0;
+    /* Keep bottom fixed */
+    margin-top: auto;
+    /* Push to bottom if no projects */
 }
 
 .sidebar-projects {
@@ -115,7 +118,8 @@
     width: 40px;
     height: 40px;
     /* Fixed styles for profile pic */
-    border-radius: 8px; /* Match other buttons */
+    border-radius: 8px;
+    /* Match other buttons */
     /* ...keep original logic or just override side-btn... */
     /* Original had circle for profile, let's keep it consistent? 
        Actually user didn't ask to change profile button, but re-using .side-btn works.
@@ -134,7 +138,8 @@
         width: 100%;
         object-fit: cover;
         transition: all 0.2s;
-        border-radius: 50%; /* Ensure rounded */
+        border-radius: 50%;
+        /* Ensure rounded */
     }
 
     &:hover {
@@ -319,6 +324,7 @@
 .actions-group {
     display: flex;
     gap: 8px;
+    align-items: center;
     flex-shrink: 0;
 }
 
