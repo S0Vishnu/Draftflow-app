@@ -827,6 +827,9 @@
     padding: 2px 5px;
     border-radius: 3px;
     flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
 }
 
 .commit-card.active .commit-id {
