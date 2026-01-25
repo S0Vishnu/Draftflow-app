@@ -7,6 +7,7 @@ const ACCOUNT_NAME = 'firebase_id_token'; // Single user for now, or use dynamic
 const DATE_KEY = 'token_date';
 
 // Validates token format (basic JWT check)
+// Validates token format (basic JWT check)
 function isValidToken(token) {
     return typeof token === 'string' && token.split('.').length === 3;
 }
@@ -17,19 +18,31 @@ class AuthManager extends EventEmitter {
         this.isAuthenticated = false;
     }
 
-    // Initialize: Check if we have a valid token from today
+    // Initialize: Check if we have a valid token within 30 days
     async init() {
         try {
             const dateStored = await keytar.getPassword(SERVICE_NAME, DATE_KEY);
-            const today = new Date().toDateString();
+            
+            if (dateStored) {
+                // Check if it's a timestamp (new format) or date string (old format)
+                const lastLogin = parseInt(dateStored);
+                // 30 days in ms = 2592000000
+                const THIRTY_DAYS_MS = 2592000000;
+                
+                const isTimestamp = !isNaN(lastLogin);
+                const isValid = isTimestamp && (Date.now() - lastLogin < THIRTY_DAYS_MS);
 
-            if (dateStored === today) {
-                const token = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
-                if (token && isValidToken(token)) {
-                    this.isAuthenticated = true;
-                    // Notify renderer - but handle might not be ready if called too early. 
-                    // We will rely on renderer asking or `getToken` call.
-                    return token;
+                // If old format (Date String) or expired timestamp, we consider it invalid/expired
+                // Note: Old format (string) parsing to int results in NaN, so `isValid` becomes false, forcing re-login which upgrades format.
+                
+                if (isValid) {
+                    const token = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+                    if (token && isValidToken(token)) {
+                        this.isAuthenticated = true;
+                        // Notify renderer - but handle might not be ready if called too early. 
+                        // We will rely on renderer asking or `getToken` call.
+                        return token;
+                    }
                 }
             }
             return null;
@@ -89,8 +102,8 @@ class AuthManager extends EventEmitter {
         try {
             // Save token
             await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, token);
-            // Save date to enforce 1-day validity logic requested
-            await keytar.setPassword(SERVICE_NAME, DATE_KEY, new Date().toDateString());
+            // Save timestamp to enforce 30-day validity logic
+            await keytar.setPassword(SERVICE_NAME, DATE_KEY, Date.now().toString());
         } catch (e) {
             console.error('Keytar Save Error:', e);
         }
@@ -99,10 +112,19 @@ class AuthManager extends EventEmitter {
     async getToken() {
         try {
             const dateStored = await keytar.getPassword(SERVICE_NAME, DATE_KEY);
-            const today = new Date().toDateString();
+            
+            let isValid = false;
+            
+            if (dateStored) {
+                 const lastLogin = parseInt(dateStored);
+                 const THIRTY_DAYS_MS = 2592000000;
+                 if (!isNaN(lastLogin) && (Date.now() - lastLogin < THIRTY_DAYS_MS)) {
+                     isValid = true;
+                 }
+            }
 
-            if (dateStored !== today) {
-                // Token expired (logic: valid for a entire day)
+            if (!isValid) {
+                // Token expired
                 await this.logout();
                 return null;
             }

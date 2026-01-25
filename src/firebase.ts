@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 // Helper to remove accidental extra quotes or whitespace
 const sanitize = (val: string | undefined) => val ? val.replace(/['"]/g, '').trim() : undefined;
@@ -33,6 +33,12 @@ try {
 
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+
+  // Explicitly set persistence to local storage to ensure long-term session works
+  setPersistence(auth, browserLocalPersistence).catch((error) => {
+    console.error("Firebase Persistence Error:", error);
+  });
+
   db = getFirestore(app);
   storage = getStorage(app);
   googleProvider = new GoogleAuthProvider();
