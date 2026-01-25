@@ -13,6 +13,7 @@ const api = {
   copyEntry: (sourcePath, destPath) => electronAPI.ipcRenderer.invoke('fs:copyEntry', { sourcePath, destPath }),
   showInFolder: (path) => electronAPI.ipcRenderer.invoke('fs:showInFolder', path),
   openPath: (path) => electronAPI.ipcRenderer.invoke('fs:openPath', path),
+  openExternal: (url) => electronAPI.ipcRenderer.invoke('shell:openExternal', url),
   getStats: (path) => electronAPI.ipcRenderer.invoke('fs:getStats', path),
   watchDir: (path) => electronAPI.ipcRenderer.invoke('fs:watchDir', path),
   downloadAddon: () => electronAPI.ipcRenderer.invoke('addon:download'),

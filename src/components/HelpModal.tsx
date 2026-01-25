@@ -20,6 +20,15 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
+    const handleOpenLink = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+        e.preventDefault();
+        if ((window as any).api && (window as any).api.openExternal) {
+            (window as any).api.openExternal(url);
+        } else {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -106,7 +115,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                     <div className="help-section credits">
                         <h4>Credits</h4>
                         <p className="help-modal-footer">
-                            <a className="footer-link" href="https://github.com/S0Vishnu/Draftwolf-app/issues">For Issues & Feedback <ExternalLinkIcon size={12} /></a>
+                            <a className="footer-link" href="https://github.com/S0Vishnu/Draftwolf-app/issues" onClick={(e) => handleOpenLink(e, "https://github.com/S0Vishnu/Draftwolf-app/issues")}>For Issues & Feedback <ExternalLinkIcon size={12} /></a>
                         </p>
                         <span className="with-love">Made with <Heart size={14} className="heart-icon" /> for builders</span>
                     </div>
@@ -114,7 +123,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
                 <div className="help-modal-footer-container">
                     <div className="help-modal-footer">
-                        <a href="https://www.buymeacoffee.com/s0vishnu" target="_blank" rel="noopener noreferrer" className="footer-link">
+                        <a href="https://www.buymeacoffee.com/s0vishnu" onClick={(e) => handleOpenLink(e, "https://www.buymeacoffee.com/s0vishnu")} className="footer-link">
                             <Coffee size={16} /> Buy me a coffee
                         </a>
                     </div>

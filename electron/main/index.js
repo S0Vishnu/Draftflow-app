@@ -378,6 +378,16 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('shell:openExternal', async (_, url) => {
+    try {
+      await shell.openExternal(url);
+      return true;
+    } catch (e) {
+      console.error("Failed to open external url:", e);
+      return false;
+    }
+  })
+
   createWindow()
 
   app.on('activate', function () {
