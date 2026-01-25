@@ -68,7 +68,7 @@ const AttachmentsTab: React.FC<AttachmentsTabProps> = ({
                     <div
                         className="upload-placeholder"
                         onClick={onAdd}
-                        style={{ cursor: 'pointer', minHeight: attachments.length > 0 ? '150px' : '300px' }}
+                        style={{ cursor: 'pointer' }}
                     >
                         <div className="upload-icon-circle">
                             <Upload size={24} />

@@ -10,6 +10,9 @@
 /* Controls Header */
 .controls-header {
     display: flex;
+    align-items: center;
+    /* flex-direction: column; */
+    height: 34px;
     gap: 8px;
     margin-bottom: 16px;
 }
@@ -17,10 +20,12 @@
 .search-wrapper {
     position: relative;
     flex: 1;
+    height: 100%;
 }
 
 .search-input {
     width: 100%;
+    height: 100%;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -44,14 +49,16 @@
     pointer-events: none;
 }
 
-.filter-group {
+.todo-container .filter-group {
+    height: 100%;
     display: flex;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     padding: 2px;
+    gap: 0;
 }
 
-.filter-btn {
+.todo-container .filter-btn {
     background: transparent;
     border: none;
     color: #666;
@@ -63,7 +70,7 @@
     transition: all 0.2s;
 }
 
-.filter-btn.active {
+.todo-container .filter-btn.active {
     background: rgba(255, 255, 255, 0.1);
     color: white;
 }
