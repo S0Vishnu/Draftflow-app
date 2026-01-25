@@ -23,6 +23,7 @@ const api = {
   },
   confirm: (options) => electronAPI.ipcRenderer.invoke('dialog:confirm', options),
   quitApp: () => electronAPI.ipcRenderer.send('app:quit'),
+  getAppVersion: () => electronAPI.ipcRenderer.invoke('app:getVersion'),
   draft: {
     init: (projectRoot) => electronAPI.ipcRenderer.invoke('draft:init', projectRoot),
     commit: (projectRoot, label, files) => electronAPI.ipcRenderer.invoke('draft:commit', { projectRoot, label, files }),

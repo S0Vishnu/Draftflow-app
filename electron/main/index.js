@@ -157,6 +157,10 @@ app.whenReady().then(() => {
     app.quit();
   })
 
+  ipcMain.handle('app:getVersion', () => {
+    return app.getVersion();
+  })
+
   ipcMain.handle('dialog:openFile', async (_, options) => {
     const { canceled, filePaths } = await import('electron').then(mod =>
       mod.dialog.showOpenDialog({

@@ -7,7 +7,11 @@ import { auth, db } from '../firebase';
 import Sidebar from '../components/Sidebar';
 import { createAvatar } from '@dicebear/core';
 import { lorelei } from '@dicebear/collection';
-import { Bell, Moon, LogOut, RefreshCw, User, Clock, Shield, Edit2, X, Check, Download, Coffee } from 'lucide-react';
+import {
+    Bell, Moon, LogOut, RefreshCw, User, Clock, Shield,
+    Edit2, X, Check, Download, Coffee, Trash2, Smartphone,
+    Monitor, Globe
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 import '../styles/Settings.css';
 
@@ -26,6 +30,7 @@ const Settings = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [appVersion, setAppVersion] = useState("1.1.5"); // Default fallback
 
     // Initial default settings
     const defaultSettings: UserSettings = {
@@ -52,6 +57,11 @@ const Settings = () => {
         const name = user.displayName || '';
         setDisplayName(name);
         setInitialDisplayName(name);
+
+        // Get App Version
+        if ((window as any).api && (window as any).api.getAppVersion) {
+            (window as any).api.getAppVersion().then((v: string) => setAppVersion(v));
+        }
 
         // 1. Load from LocalStorage immediately for instant UI
         const saved = localStorage.getItem(`user_settings_${user.uid}`);
@@ -84,7 +94,6 @@ const Settings = () => {
                 }
             } catch (err) {
                 console.error("Failed to load settings from Firestore:", err);
-                // We already loaded from localStorage, so nothing more to do here unless we want to warn.
             }
         };
         loadSettings();
@@ -92,28 +101,15 @@ const Settings = () => {
 
     // Handle Profile Save
     const saveProfile = async () => {
-        console.log("Attempting to save profile...");
-        if (!user) {
-            console.error("No user found during save.");
-            toast.error("User not verified. Please login again.");
-            return;
-        }
-        if (!db) {
-            console.error("Firestore DB instance is missing.");
-            toast.error("Service unavailable (DB missing).");
-            return;
-        }
+        if (!user) return;
 
         setLoading(true);
         try {
-            // 1. Generate Avatar
-            // We use the hosted DiceBear API for the URL to avoid Firebase's 2048 byte limit on photoURL.
-            // Local SVG generation produces Data URIs that are too long.
+            // 1. Generate Avatar URL
             const seed = encodeURIComponent(settings.avatarSeed || 'default');
             const newPhotoURL = `https://api.dicebear.com/9.x/lorelei/svg?seed=${seed}&radius=50&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
 
-            // 2. Update Firebase Auth Profile (Display Name and PhotoURL)
-            console.log("Updating Auth Profile:", { displayName, newPhotoURL });
+            // 2. Update Firebase Auth Profile
             if (displayName !== user.displayName || newPhotoURL !== user.photoURL) {
                 await updateProfile(user, {
                     displayName: displayName || undefined,
@@ -128,36 +124,23 @@ const Settings = () => {
                 avatarSeed: settings.avatarSeed || '',
                 photoURL: newPhotoURL || '',
                 updatedAt: new Date().toISOString(),
-                uid: user.uid, // Redundant but useful for queries
-                email: user.email // Useful for admin debugging
+                uid: user.uid,
+                email: user.email
             };
 
             // 4. Write to Firestore
-            console.log("Writing to Firestore (files/users/" + user.uid + "):", profileData);
             await setDoc(doc(db, 'users', user.uid), profileData, { merge: true });
 
             // 5. Update Local State
             localStorage.setItem(`user_settings_${user.uid}`, JSON.stringify(settings));
             setInitialSettings(settings);
 
-            console.log("Save complete.");
             setIsEditing(false);
-            toast.success('Profile saved successfully!');
+            toast.success('Profile updated successfully');
 
         } catch (error: any) {
-            console.error("CRITICAL SAVE ERROR:", error);
-            console.error("Error Code:", error.code);
-            console.error("Error Message:", error.message);
-
-            if (error.code === 'permission-denied') {
-                toast.error("Permission denied. Check Firestore rules.");
-            } else if (error.code === 'unavailable') {
-                toast.error("Network offline or Firestore unreachable.");
-            } else {
-                toast.error(`Save failed: ${error.message}`);
-                // Fallback alert if toast misses
-                alert(`Save failed: ${error.message}`);
-            }
+            console.error("Save error:", error);
+            toast.error(`Failed to save profile: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -179,14 +162,13 @@ const Settings = () => {
 
         const newSettings = { ...settings, [key]: value };
         setSettings(newSettings);
-        setInitialSettings(prev => ({ ...prev, [key]: value })); // Update backup so change detection logic implies "saved"
+        setInitialSettings(prev => ({ ...prev, [key]: value }));
 
         try {
             await setDoc(doc(db, 'users', user.uid), { [key]: value }, { merge: true });
             localStorage.setItem(`user_settings_${user.uid}`, JSON.stringify(newSettings));
         } catch (error) {
             console.error("Failed to save preference:", error);
-            // toast.error('Failed to save preference.'); // Optional: suppress to avoid noise
         }
     };
 
@@ -197,19 +179,22 @@ const Settings = () => {
 
     const handleSignOut = async () => {
         try {
-            localStorage.clear();
-
             // Clear Electron Main Process Auth
-            if (window.api && window.api.auth) {
-                await window.api.auth.logout();
+            if ((window as any).api && (window as any).api.auth) {
+                await (window as any).api.auth.logout();
             }
-
             await auth.signOut();
             navigate('/');
         } catch (error) {
             console.error("Error signing out:", error);
             toast.error("Failed to sign out");
         }
+    };
+
+    const handleClearCache = async () => {
+        localStorage.clear();
+        toast.info("Local cache cleared. Reloading...");
+        setTimeout(() => window.location.reload(), 1000);
     };
 
     const handleDownloadAddon = async () => {
@@ -219,6 +204,7 @@ const Settings = () => {
             return;
         }
         try {
+            toast.info("Starting download...");
             const result = await api.downloadAddon();
             if (result.success) {
                 toast.success('Addon downloaded successfully!');
@@ -231,7 +217,7 @@ const Settings = () => {
         }
     };
 
-    // Generate Avatar
+    // Generate Avatar for preview
     const avatar = createAvatar(lorelei, {
         seed: settings.avatarSeed || 'default',
         backgroundColor: ['b6e3f4', 'c0aede', 'd1d4f9', 'ffdfbf'],
@@ -242,294 +228,248 @@ const Settings = () => {
     return (
         <div className="settings-container">
             <div className="app-inner" style={{ display: 'flex', flex: 1, overflow: 'hidden', width: '100%' }}>
-                <Sidebar
-                    isOpen={true}
-                    user={user}
-                />
+                <Sidebar isOpen={true} user={user} />
+
                 <main className="settings-content">
                     <header className="settings-header">
-                        <h1>Settings & Profile</h1>
+                        <h1>Settings</h1>
+                        <p>Manage your account preferences and application settings.</p>
                     </header>
 
                     <div className="settings-grid">
 
-                        {/* Left Column: Profile */}
-                        <div className="settings-column">
-                            <div className="glass-panel">
-                                <div className="panel-header">
-                                    <h2 className="panel-title">
-                                        <User size={24} className="text-accent" style={{ color: '#3b82f6' }} />
-                                        Profile Identity
-                                    </h2>
-                                    {!isEditing && (
-                                        <button
-                                            onClick={() => setIsEditing(true)}
-                                            className="btn-edit"
-                                        >
-                                            <Edit2 size={14} />
-                                            <span>Edit Profile</span>
+                        {/* LEFT COLUMN: Profile & Identity */}
+                        <div className="glass-panel">
+                            <div className="panel-header">
+                                <h2 className="panel-title">
+                                    <User size={20} className="text-accent" style={{ color: '#3b82f6' }} />
+                                    Identity
+                                </h2>
+                            </div>
+
+                            <div className="profile-section">
+                                <div className="avatar-container">
+                                    <div className="avatar-ring"></div>
+                                    <img src={avatarUrl} alt="Avatar" className="avatar-img" />
+                                    {isEditing && (
+                                        <button onClick={regenerateAvatar} className="btn-regenerate" title="Regenerate Avatar">
+                                            <RefreshCw size={20} />
                                         </button>
                                     )}
                                 </div>
 
-                                <div className="profile-avatar-wrapper">
-                                    <div className="avatar-ring">
-                                        <img src={avatarUrl} alt="Avatar" className="avatar-img" />
-                                        {isEditing && (
-                                            <button
-                                                onClick={regenerateAvatar}
-                                                title="Regenerate Avatar"
-                                                className="btn-regenerate"
-                                            >
-                                                <RefreshCw size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                {!isEditing ? (
+                                    <div className="user-info-display">
+                                        <h3 className="user-name">{displayName || 'User'}</h3>
+                                        <p className="user-bio">{settings.bio || 'Digital Artist & DraftWolf User'}</p>
 
-                                {isEditing ? (
-                                    <>
+                                        <button onClick={() => setIsEditing(true)} className="btn-edit-profile">
+                                            <Edit2 size={16} /> Edit Profile
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ width: '100%' }}>
                                         <div className="form-group">
-                                            <label className="form-label">Username</label>
+                                            <label className="form-label">Display Name</label>
                                             <input
                                                 type="text"
                                                 value={displayName}
                                                 onChange={e => setDisplayName(e.target.value)}
-                                                placeholder="Enter your display name"
                                                 className="input-styled"
+                                                placeholder="Your Name"
                                             />
                                         </div>
-
                                         <div className="form-group">
                                             <label className="form-label">Bio</label>
                                             <textarea
                                                 value={settings.bio}
                                                 onChange={e => setSettings({ ...settings, bio: e.target.value })}
-                                                placeholder="Tell us a bit about yourself..."
-                                                rows={4}
                                                 className="input-styled"
+                                                placeholder="Tell us about yourself..."
                                             />
                                         </div>
 
-                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                            <button
-                                                onClick={cancelEdit}
-                                                className="btn-cancel"
-                                            >
+                                        <div className="edit-actions">
+                                            <button onClick={cancelEdit} className="btn-cancel">
                                                 <X size={18} /> Cancel
                                             </button>
-                                            <button
-                                                onClick={saveProfile}
-                                                disabled={loading}
-                                                className="btn-save"
-                                            >
-                                                <Check size={18} /> {loading ? 'Saving...' : 'Save Profile'}
+                                            <button onClick={saveProfile} disabled={loading} className="btn-save">
+                                                <Check size={18} /> {loading ? 'Saving...' : 'Save'}
                                             </button>
                                         </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                            <h3 className="profile-name">{displayName || 'User'}</h3>
-                                            <p className="profile-bio">
-                                                {settings.bio || 'No bio provided yet.'}
-                                            </p>
-                                        </div>
-                                    </>
+                                    </div>
                                 )}
                             </div>
 
-                            <div className="glass-panel" style={{ marginTop: '1rem', textAlign: 'center', background: 'linear-gradient(145deg, rgba(255, 221, 0, 0.1), rgba(0,0,0,0))', border: '1px solid rgba(255, 221, 0, 0.2)' }}>
-                                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                    <Coffee size={20} color="#FFDD00" />
-                                    Support Creator
-                                </h3>
-                                <p style={{ fontSize: '0.9rem', opacity: 0.8, marginBottom: '1rem', lineHeight: '1.4' }}>
-                                    Run on caffeine? So do I.<br />
-                                    Support the development of DraftWolf!
-                                </p>
-                                <a
-                                    href="https://www.buymeacoffee.com/s0vishnu"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        backgroundColor: '#FFDD00',
-                                        color: '#000000',
-                                        padding: '10px 24px',
-                                        borderRadius: '999px',
-                                        textDecoration: 'none',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                        transition: 'transform 0.2s',
-                                        boxShadow: '0 4px 12px rgba(255, 221, 0, 0.2)'
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                    onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                >
-                                    <Coffee size={16} fill="black" />
-                                    Buy me a Coffee
+                            <div className="support-card">
+                                <Coffee size={24} color="#FFDD00" style={{ marginBottom: '0.5rem' }} />
+                                <h3 style={{ fontSize: '1rem', margin: '0 0 0.5rem 0', fontWeight: 600 }}>Support Development</h3>
+                                <p style={{ fontSize: '0.85rem', margin: 0, opacity: 0.8 }}>Love using DraftWolf? Consider buying me a coffee to keep the updates coming!</p>
+                                <a href="https://www.buymeacoffee.com/s0vishnu" target="_blank" rel="noopener noreferrer" className="btn-coffee">
+                                    <Coffee size={16} fill="black" /> Buy Me a Coffee
                                 </a>
                             </div>
                         </div>
 
-                        {/* Right Column: Settings Stack */}
-                        <div className="settings-column">
+                        {/* RIGHT COLUMN: Settings Lists */}
+                        <div className="settings-list-container">
 
-                            {/* Notifications & DnD */}
-                            <div className="glass-panel">
-                                <h2 className="panel-title" style={{ marginBottom: '1.5rem' }}>
-                                    <Bell size={24} style={{ color: '#eab308' }} />
-                                    Notifications
-                                </h2>
-
-                                <div className="setting-row">
-                                    <div className="setting-info">
-                                        <h3>Push Notifications</h3>
-                                        <p>Receive updates about your activity</p>
-                                    </div>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.notificationsEnabled}
-                                            onChange={e => updatePreference('notificationsEnabled', e.target.checked)}
-                                            className="toggle-input"
-                                        />
-                                        <span className="toggle-slider">
-                                            <span className="toggle-knob"></span>
-                                        </span>
-                                    </label>
+                            {/* App Preferences */}
+                            <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+                                <div className="panel-header">
+                                    <h2 className="panel-title">
+                                        <Monitor size={20} className="text-accent" style={{ color: '#eab308' }} />
+                                        App Preferences
+                                    </h2>
                                 </div>
 
-                                <div className="setting-block">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <Moon size={18} style={{ opacity: 0.7 }} />
-                                            <span style={{ fontSize: '1rem', fontWeight: 500 }}>Do Not Disturb</span>
+                                <div className="settings-list">
+                                    <div className="setting-item">
+                                        <div className="setting-info">
+                                            <h3>Push Notifications</h3>
+                                            <p>Receive desktop notifications for important updates.</p>
                                         </div>
                                         <label className="toggle-switch">
                                             <input
                                                 type="checkbox"
-                                                checked={settings.dndEnabled}
-                                                onChange={e => updatePreference('dndEnabled', e.target.checked)}
+                                                checked={settings.notificationsEnabled}
+                                                onChange={e => updatePreference('notificationsEnabled', e.target.checked)}
                                                 className="toggle-input"
                                             />
-                                            <span className="toggle-slider">
-                                                <span className="toggle-knob"></span>
-                                            </span>
+                                            <span className="toggle-slider"><span className="toggle-knob"></span></span>
                                         </label>
                                     </div>
 
-                                    {settings.dndEnabled && (
-                                        <div className="time-inputs">
-                                            <div className="time-box">
-                                                <label>From</label>
-                                                <div className="time-wrapper">
-                                                    <Clock size={14} style={{ opacity: 0.5 }} />
-                                                    <input
-                                                        type="time"
-                                                        value={settings.dndStart}
-                                                        onChange={e => updatePreference('dndStart', e.target.value)}
-                                                        className="time-input"
-                                                    />
-                                                </div>
+                                    <div className="setting-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div className="setting-info">
+                                                <h3>Do Not Disturb</h3>
+                                                <p>Suppress notifications during specific hours.</p>
                                             </div>
-                                            <div style={{ opacity: 0.3 }}>-</div>
-                                            <div className="time-box">
-                                                <label>To</label>
-                                                <div className="time-wrapper">
-                                                    <Clock size={14} style={{ opacity: 0.5 }} />
-                                                    <input
-                                                        type="time"
-                                                        value={settings.dndEnd}
-                                                        onChange={e => updatePreference('dndEnd', e.target.value)}
-                                                        className="time-input"
-                                                    />
-                                                </div>
-                                            </div>
+                                            <label className="toggle-switch">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={settings.dndEnabled}
+                                                    onChange={e => updatePreference('dndEnabled', e.target.checked)}
+                                                    className="toggle-input"
+                                                />
+                                                <span className="toggle-slider"><span className="toggle-knob"></span></span>
+                                            </label>
                                         </div>
-                                    )}
+
+                                        {settings.dndEnabled && (
+                                            <div className="dnd-settings" style={{ width: '100%' }}>
+                                                <div className="dnd-inputs">
+                                                    <div className="time-wrapper">
+                                                        <Clock size={14} className="text-muted" />
+                                                        <input
+                                                            type="time"
+                                                            value={settings.dndStart}
+                                                            onChange={e => updatePreference('dndStart', e.target.value)}
+                                                            className="time-input"
+                                                        />
+                                                    </div>
+                                                    <span style={{ opacity: 0.5 }}>to</span>
+                                                    <div className="time-wrapper">
+                                                        <Clock size={14} className="text-muted" />
+                                                        <input
+                                                            type="time"
+                                                            value={settings.dndEnd}
+                                                            onChange={e => updatePreference('dndEnd', e.target.value)}
+                                                            className="time-input"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="setting-item">
+                                        <div className="setting-info">
+                                            <h3>Automatic Updates</h3>
+                                            <p>Check for the latest version on launch.</p>
+                                        </div>
+                                        <label className="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                checked={settings.checkUpdates ?? true}
+                                                onChange={e => updatePreference('checkUpdates', e.target.checked)}
+                                                className="toggle-input"
+                                            />
+                                            <span className="toggle-slider"><span className="toggle-knob"></span></span>
+                                        </label>
+                                    </div>
+
                                 </div>
                             </div>
 
-                            {/* Blender Plugin */}
-                            <div className="glass-panel">
-                                <h2 className="panel-title" style={{ marginBottom: '1rem' }}>
-                                    <Download size={24} style={{ color: '#f97316' }} />
-                                    Blender Integration
-                                </h2>
-                                <p className="info-text" style={{ marginBottom: '1.5rem' }}>
-                                    Download the optional Blender addon to version your projects directly from Blender.
-                                </p>
-                                <button
-                                    onClick={handleDownloadAddon}
-                                    className="btn-download-addon"
-                                >
-                                    <Download size={18} />
-                                    Download Addon (.zip)
-                                </button>
+                            {/* Integrations */}
+                            <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+                                <div className="panel-header">
+                                    <h2 className="panel-title">
+                                        <Globe size={20} className="text-accent" style={{ color: '#8b5cf6' }} />
+                                        Integrations & Tools
+                                    </h2>
+                                </div>
+                                <div className="feature-card">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ background: '#e17b34', padding: '10px', borderRadius: '12px' }}>
+                                            <Download size={24} color="white" />
+                                        </div>
+                                        <div className="feature-info">
+                                            <h4>Blender Addon</h4>
+                                            <p>Sync and version your projects directly from Blender.</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleDownloadAddon} className="btn-action-primary">
+                                        <Download size={16} /> Download
+                                    </button>
+                                </div>
                             </div>
 
-
-
-                            {/* System / Updates */}
+                            {/* Privacy & Danger Zone */}
                             <div className="glass-panel">
-                                <h2 className="panel-title" style={{ marginBottom: '1.5rem' }}>
-                                    <RefreshCw size={24} style={{ color: '#ec4899' }} />
-                                    Updates
-                                </h2>
+                                <div className="panel-header">
+                                    <h2 className="panel-title">
+                                        <Shield size={20} className="text-accent" style={{ color: '#10b981' }} />
+                                        Privacy & Data
+                                    </h2>
+                                </div>
 
-                                <div className="setting-row">
+                                <div className="setting-item">
                                     <div className="setting-info">
-                                        <h3>Automatic Updates</h3>
-                                        <p>Check for updates on launch</p>
+                                        <h3>User Identity</h3>
+                                        <p>Your unique account ID used for data synchronization.</p>
                                     </div>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={settings.checkUpdates ?? true}
-                                            onChange={e => updatePreference('checkUpdates', e.target.checked)}
-                                            className="toggle-input"
-                                        />
-                                        <span className="toggle-slider">
-                                            <span className="toggle-knob"></span>
-                                        </span>
-                                    </label>
+                                    <div className="id-badge" onClick={() => {
+                                        if (user?.uid) {
+                                            navigator.clipboard.writeText(user.uid);
+                                            toast.success("User ID copied!");
+                                        }
+                                    }}>
+                                        {user?.uid || 'Not Connected'}
+                                    </div>
+                                </div>
+
+                                <div className="danger-zone">
+                                    <button onClick={handleClearCache} className="btn-clear-cache">
+                                        <Trash2 size={16} /> Clear Cache
+                                    </button>
+                                    <button onClick={handleSignOut} className="btn-signout">
+                                        <LogOut size={16} /> Sign Out
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* Privacy / Other */}
-                            <div className="glass-panel">
-                                <h2 className="panel-title" style={{ marginBottom: '1rem' }}>
-                                    <Shield size={24} style={{ color: '#10b981' }} />
-                                    Privacy
-                                </h2>
-                                <div className="info-text">
-                                    Your User ID is a unique identifier used for authentication and data sorting. It is kept private by default.
-                                    <div className="uid-badge">
-                                        {user?.uid}
-                                    </div>
-                                </div>
+                            <div className="version-text">
+                                DraftWolf v{appVersion}
                             </div>
 
                         </div>
                     </div>
-
-
-                    <div style={{ marginTop: 'auto', paddingTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <button
-                            className="btn-signout"
-                            onClick={handleSignOut}
-                        >
-                            <LogOut size={18} />
-                            Sign Out of Draftwolf as {user?.email}
-                        </button>
-                    </div>
-                </main >
-            </div >
-        </div >
+                </main>
+            </div>
+        </div>
     );
 };
 
