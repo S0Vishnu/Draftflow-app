@@ -43,7 +43,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ channelId }) => {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const textInputRef = useRef<HTMLInputElement>(null);
+    const textInputRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
     // Close emoji picker on outside click
@@ -168,6 +168,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({ channelId }) => {
             });
 
             setNewMessage('');
+            if (textInputRef.current) {
+                textInputRef.current.style.height = 'auto';
+            }
             setImageFile(null);
             setReplyingTo(null);
             setShowEmojiPicker(false);
@@ -499,21 +502,35 @@ const ChatArea: React.FC<ChatAreaProps> = ({ channelId }) => {
                                             </>
                                         )}
 
-                                    <input
-                                        type="text"
+                                    <textarea
                                         ref={textInputRef}
                                         value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        placeholder={`Message #${channelNames[channelId] || 'channel'}`}
+                                        onChange={(e) => {
+                                            setNewMessage(e.target.value);
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = `${e.target.scrollHeight}px`;
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                        placeholder={`Message #${channelNames[channelId] || 'channel'} (Ctrl+Enter to send)`}
                                         disabled={isUploading}
+                                        rows={1}
                                         style={{
                                             flex: 1,
                                             background: 'none',
                                             border: 'none',
                                             color: '#fff',
-                                            padding: '0 12px',
+                                            padding: '8px 12px',
                                             outline: 'none',
-                                            fontSize: '15px'
+                                            fontSize: '15px',
+                                            resize: 'none',
+                                            lineHeight: '1.4',
+                                            maxHeight: '200px',
+                                            overflowY: 'auto'
                                         }}
                                     />
 
